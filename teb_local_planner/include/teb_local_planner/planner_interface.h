@@ -198,6 +198,11 @@ public:
   {
   }
 
+  /**
+   * @brief Returns true if the planner has diverged.
+   */
+  virtual bool hasDiverged() const = 0;
+
   nav2_util::LifecycleNode::SharedPtr node_{nullptr};
 };
 
