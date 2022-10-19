@@ -83,7 +83,7 @@ void TebLocalPlannerROS::reconfigureCB(TebLocalPlannerReconfigureConfig& config,
   cfg_.reconfigure(config);
   ros::NodeHandle nh("~/" + name_);
   // create robot footprint/contour model for optimization
-  RobotFootprintModelPtr robot_model = getRobotFootprintFromParamServer(nh);
+  RobotFootprintModelPtr robot_model = getRobotFootprintFromParamServer(nh, cfg_);
   planner_->updateRobotModel(robot_model);
 }
 
@@ -106,7 +106,7 @@ void TebLocalPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf, costm
     visualization_ = TebVisualizationPtr(new TebVisualization(nh, cfg_)); 
         
     // create robot footprint/contour model for optimization
-    RobotFootprintModelPtr robot_model = getRobotFootprintFromParamServer(nh);
+    RobotFootprintModelPtr robot_model = getRobotFootprintFromParamServer(nh, cfg_);
     
     // create the planner instance
     if (cfg_.hcp.enable_homotopy_class_planning)
@@ -281,6 +281,9 @@ uint32_t TebLocalPlannerROS::computeVelocityCommands(const geometry_msgs::PoseSt
   if (!custom_via_points_active_)
     updateViaPointsContainer(transformed_plan, cfg_.trajectory.global_plan_viapoint_sep);
 
+  nav_msgs::Odometry base_odom;
+  odom_helper_.getOdom(base_odom);
+
   // check if global goal is reached
   geometry_msgs::PoseStamped global_goal;
   tf2::doTransform(global_plan_.back(), global_goal, tf_plan_to_global);
@@ -289,13 +292,14 @@ uint32_t TebLocalPlannerROS::computeVelocityCommands(const geometry_msgs::PoseSt
   double delta_orient = g2o::normalize_theta( tf2::getYaw(global_goal.pose.orientation) - robot_pose_.theta() );
   if(fabs(std::sqrt(dx*dx+dy*dy)) < cfg_.goal_tolerance.xy_goal_tolerance
     && fabs(delta_orient) < cfg_.goal_tolerance.yaw_goal_tolerance
-    && (!cfg_.goal_tolerance.complete_global_plan || via_points_.size() == 0))
+    && (!cfg_.goal_tolerance.complete_global_plan || via_points_.size() == 0)
+    && (base_local_planner::stopped(base_odom, cfg_.goal_tolerance.theta_stopped_vel, cfg_.goal_tolerance.trans_stopped_vel)
+        || cfg_.goal_tolerance.free_goal_vel))
   {
     goal_reached_ = true;
     return mbf_msgs::ExePathResult::SUCCESS;
   }
-  
-  
+
   // check if we should enter any backup mode and apply settings
   configureBackupModes(transformed_plan, goal_idx);
   
@@ -417,7 +421,8 @@ uint32_t TebLocalPlannerROS::computeVelocityCommands(const geometry_msgs::PoseSt
   
   // Saturate velocity, if the optimization results violates the constraints (could be possible due to soft constraints).
   saturateVelocity(cmd_vel.twist.linear.x, cmd_vel.twist.linear.y, cmd_vel.twist.angular.z,
-                   cfg_.robot.max_vel_x, cfg_.robot.max_vel_y, cfg_.robot.max_vel_theta, cfg_.robot.max_vel_x_backwards);
+                   cfg_.robot.max_vel_x, cfg_.robot.max_vel_y, cfg_.robot.max_vel_trans, cfg_.robot.max_vel_theta, 
+                   cfg_.robot.max_vel_x_backwards);
 
   // convert rot-vel to steering angle if desired (carlike robot).
   // The min_turning_radius is allowed to be slighly smaller since it is a soft-constraint
@@ -735,8 +740,6 @@ bool TebLocalPlannerROS::transformGlobalPlan(const tf2_ros::Buffer& tf, const st
       double x_diff = robot_pose.pose.position.x - global_plan[j].pose.position.x;
       double y_diff = robot_pose.pose.position.y - global_plan[j].pose.position.y;
       double new_sq_dist = x_diff * x_diff + y_diff * y_diff;
-      if (new_sq_dist > sq_dist_threshold)
-        break;  // force stop if we have reached the costmap border
 
       if (robot_reached && new_sq_dist > sq_dist)
         break;
@@ -865,7 +868,8 @@ double TebLocalPlannerROS::estimateLocalGoalOrientation(const std::vector<geomet
 }
       
       
-void TebLocalPlannerROS::saturateVelocity(double& vx, double& vy, double& omega, double max_vel_x, double max_vel_y, double max_vel_theta, double max_vel_x_backwards) const
+void TebLocalPlannerROS::saturateVelocity(double& vx, double& vy, double& omega, double max_vel_x, double max_vel_y, double max_vel_trans, double max_vel_theta, 
+              double max_vel_x_backwards) const
 {
   double ratio_x = 1, ratio_omega = 1, ratio_y = 1;
   // Limit translational velocity for forward driving
@@ -874,7 +878,7 @@ void TebLocalPlannerROS::saturateVelocity(double& vx, double& vy, double& omega,
   
   // limit strafing velocity
   if (vy > max_vel_y || vy < -max_vel_y)
-    ratio_y = std::abs(vy / max_vel_y);
+    ratio_y = std::abs(max_vel_y / vy);
   
   // Limit angular velocity
   if (omega > max_vel_theta || omega < -max_vel_theta)
@@ -900,6 +904,14 @@ void TebLocalPlannerROS::saturateVelocity(double& vx, double& vy, double& omega,
     vx *= ratio_x;
     vy *= ratio_y;
     omega *= ratio_omega;
+  }
+
+  double vel_linear = std::hypot(vx, vy);
+  if (vel_linear > max_vel_trans)
+  {
+    double max_vel_trans_ratio = max_vel_trans / vel_linear;
+    vx *= max_vel_trans_ratio;
+    vy *= max_vel_trans_ratio;
   }
 }
      
@@ -1028,7 +1040,7 @@ void TebLocalPlannerROS::customViaPointsCB(const nav_msgs::Path::ConstPtr& via_p
   custom_via_points_active_ = !via_points_.empty();
 }
      
-RobotFootprintModelPtr TebLocalPlannerROS::getRobotFootprintFromParamServer(const ros::NodeHandle& nh)
+RobotFootprintModelPtr TebLocalPlannerROS::getRobotFootprintFromParamServer(const ros::NodeHandle& nh, const TebConfig& config)
 {
   std::string model_name; 
   if (!nh.getParam("footprint_model/type", model_name))
@@ -1041,7 +1053,7 @@ RobotFootprintModelPtr TebLocalPlannerROS::getRobotFootprintFromParamServer(cons
   if (model_name.compare("point") == 0)
   {
     ROS_INFO("Footprint model 'point' loaded for trajectory optimization.");
-    return boost::make_shared<PointRobotFootprint>();
+    return boost::make_shared<PointRobotFootprint>(config.obstacles.min_obstacle_dist);
   }
   
   // circular
@@ -1082,7 +1094,7 @@ RobotFootprintModelPtr TebLocalPlannerROS::getRobotFootprintFromParamServer(cons
     
     ROS_INFO_STREAM("Footprint model 'line' (line_start: [" << line_start[0] << "," << line_start[1] <<"]m, line_end: ["
                      << line_end[0] << "," << line_end[1] << "]m) loaded for trajectory optimization.");
-    return boost::make_shared<LineRobotFootprint>(Eigen::Map<const Eigen::Vector2d>(line_start.data()), Eigen::Map<const Eigen::Vector2d>(line_end.data()));
+    return boost::make_shared<LineRobotFootprint>(Eigen::Map<const Eigen::Vector2d>(line_start.data()), Eigen::Map<const Eigen::Vector2d>(line_end.data()), config.obstacles.min_obstacle_dist);
   }
   
   // two circles

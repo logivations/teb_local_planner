@@ -86,6 +86,7 @@ public:
     bool publish_feedback; //!< Publish planner feedback containing the full trajectory and a list of active obstacles (should be enabled only for evaluation or debugging purposes)
     double min_resolution_collision_check_angular; //! Min angular resolution used during the costmap collision check. If not respected, intermediate samples are added. [rad]
     int control_look_ahead_poses; //! Index of the pose used to extract the velocity command
+    int prevent_look_ahead_poses_near_goal; //! Prevents control_look_ahead_poses to look within this many poses of the goal in order to prevent overshoot & oscillation when xy_goal_tolerance is very small
   } trajectory; //!< Trajectory related parameters
 
   //! Robot related parameters
@@ -94,6 +95,7 @@ public:
     double max_vel_x; //!< Maximum translational velocity of the robot
     double max_vel_x_backwards; //!< Maximum translational velocity of the robot for driving backwards
     double max_vel_y; //!< Maximum strafing velocity of the robot (should be zero for non-holonomic robots!)
+    double max_vel_trans; //!< Maximum translational velocity of the robot for omni robots, which is different from max_vel_x
     double max_vel_theta; //!< Maximum angular velocity of the robot
     double acc_lim_x; //!< Maximum translational acceleration of the robot
     double acc_lim_y; //!< Maximum strafing acceleration of the robot
@@ -112,6 +114,8 @@ public:
     double yaw_goal_tolerance; //!< Allowed final orientation error
     double xy_goal_tolerance; //!< Allowed final euclidean distance to the goal position
     bool free_goal_vel; //!< Allow the robot's velocity to be nonzero (usally max_vel) for planning purposes
+    double trans_stopped_vel; //!< Below what maximum velocity we consider the robot to be stopped in translation
+    double theta_stopped_vel; //!< Below what maximum rotation velocity we consider the robot to be stopped in rotation
     bool complete_global_plan; // true prevents the robot from ending the path early when it cross the end goal
   } goal_tolerance; //!< Goal tolerance related parameters
 
@@ -260,12 +264,14 @@ public:
     trajectory.publish_feedback = false;
     trajectory.min_resolution_collision_check_angular = M_PI;
     trajectory.control_look_ahead_poses = 1;
-    
+    trajectory.prevent_look_ahead_poses_near_goal = 0;
+
     // Robot
 
     robot.max_vel_x = 0.4;
     robot.max_vel_x_backwards = 0.2;
     robot.max_vel_y = 0.0;
+    robot.max_vel_trans = 0.0;
     robot.max_vel_theta = 0.3;
     robot.acc_lim_x = 0.5;
     robot.acc_lim_y = 0.5;
@@ -281,6 +287,8 @@ public:
     goal_tolerance.xy_goal_tolerance = 0.2;
     goal_tolerance.yaw_goal_tolerance = 0.2;
     goal_tolerance.free_goal_vel = false;
+    goal_tolerance.trans_stopped_vel = 0.1;
+    goal_tolerance.theta_stopped_vel = 0.1;
     goal_tolerance.complete_global_plan = true;
 
     // Obstacles

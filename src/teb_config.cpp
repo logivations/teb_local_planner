@@ -68,11 +68,13 @@ void TebConfig::loadRosParamFromNodeHandle(const ros::NodeHandle& nh)
   nh.param("publish_feedback", trajectory.publish_feedback, trajectory.publish_feedback);
   nh.param("min_resolution_collision_check_angular", trajectory.min_resolution_collision_check_angular, trajectory.min_resolution_collision_check_angular);
   nh.param("control_look_ahead_poses", trajectory.control_look_ahead_poses, trajectory.control_look_ahead_poses);
+  nh.param("prevent_look_ahead_poses_near_goal", trajectory.prevent_look_ahead_poses_near_goal, trajectory.prevent_look_ahead_poses_near_goal);
   
   // Robot
   nh.param("max_vel_x", robot.max_vel_x, robot.max_vel_x);
   nh.param("max_vel_x_backwards", robot.max_vel_x_backwards, robot.max_vel_x_backwards);
   nh.param("max_vel_y", robot.max_vel_y, robot.max_vel_y);
+  nh.param("max_vel_trans", robot.max_vel_trans, robot.max_vel_trans);
   nh.param("max_vel_theta", robot.max_vel_theta, robot.max_vel_theta);
   nh.param("acc_lim_x", robot.acc_lim_x, robot.acc_lim_x);
   nh.param("acc_lim_y", robot.acc_lim_y, robot.acc_lim_y);
@@ -88,6 +90,8 @@ void TebConfig::loadRosParamFromNodeHandle(const ros::NodeHandle& nh)
   nh.param("xy_goal_tolerance", goal_tolerance.xy_goal_tolerance, goal_tolerance.xy_goal_tolerance);
   nh.param("yaw_goal_tolerance", goal_tolerance.yaw_goal_tolerance, goal_tolerance.yaw_goal_tolerance);
   nh.param("free_goal_vel", goal_tolerance.free_goal_vel, goal_tolerance.free_goal_vel);
+  nh.param("trans_stopped_vel", goal_tolerance.trans_stopped_vel, goal_tolerance.trans_stopped_vel);
+  nh.param("theta_stopped_vel", goal_tolerance.theta_stopped_vel, goal_tolerance.theta_stopped_vel);
   nh.param("complete_global_plan", goal_tolerance.complete_global_plan, goal_tolerance.complete_global_plan);
 
   // Obstacles
@@ -195,6 +199,8 @@ void TebConfig::reconfigure(TebLocalPlannerReconfigureConfig& cfg)
   trajectory.force_reinit_new_goal_angular = cfg.force_reinit_new_goal_angular;
   trajectory.feasibility_check_no_poses = cfg.feasibility_check_no_poses;
   trajectory.publish_feedback = cfg.publish_feedback;
+  trajectory.control_look_ahead_poses = cfg.control_look_ahead_poses;
+  trajectory.prevent_look_ahead_poses_near_goal = cfg.prevent_look_ahead_poses_near_goal;
   
   // Robot     
   robot.max_vel_x = cfg.max_vel_x;
@@ -208,12 +214,20 @@ void TebConfig::reconfigure(TebLocalPlannerReconfigureConfig& cfg)
   robot.wheelbase = cfg.wheelbase;
   robot.cmd_angle_instead_rotvel = cfg.cmd_angle_instead_rotvel;
   robot.use_proportional_saturation = cfg.use_proportional_saturation;
+  if (cfg.max_vel_trans == 0.0)
+  {
+    ROS_INFO_STREAM("max_vel_trans is not set, setting it equal to max_vel_x: " << robot.max_vel_x);
+    cfg.max_vel_trans = robot.max_vel_x;
+  }
+  robot.max_vel_trans = cfg.max_vel_trans;
   
   // GoalTolerance
   goal_tolerance.xy_goal_tolerance = cfg.xy_goal_tolerance;
   goal_tolerance.yaw_goal_tolerance = cfg.yaw_goal_tolerance;
   goal_tolerance.free_goal_vel = cfg.free_goal_vel;
-  
+  goal_tolerance.trans_stopped_vel = cfg.trans_stopped_vel;
+  goal_tolerance.theta_stopped_vel = cfg.theta_stopped_vel;
+
   // Obstacles
   obstacles.min_obstacle_dist = cfg.min_obstacle_dist;
   obstacles.inflation_dist = cfg.inflation_dist;
@@ -343,6 +357,17 @@ void TebConfig::checkParameters() const
   // weights
   if (optim.weight_optimaltime <= 0)
       ROS_WARN("TebLocalPlannerROS() Param Warning: parameter weight_optimaltime shoud be > 0 (even if weight_shortest_path is in use)");
+
+  // holonomic check
+  if (robot.max_vel_y > 0) {
+    if (robot.max_vel_trans < std::min(robot.max_vel_x, robot.max_vel_trans)) {
+      ROS_WARN("TebLocalPlannerROS() Param Warning: max_vel_trans < min(max_vel_x, max_vel_y). Note that vel_trans = sqrt(Vx^2 + Vy^2), thus max_vel_trans will limit Vx and Vy in the optimization step.");
+    }
+    
+    if (robot.max_vel_trans > std::max(robot.max_vel_x, robot.max_vel_y)) {
+      ROS_WARN("TebLocalPlannerROS() Param Warning: max_vel_trans > max(max_vel_x, max_vel_y). Robot will rotate and move diagonally to achieve max resultant vel (possibly max vel on both axis), limited by the max_vel_trans.");
+    }
+  }
   
 }    
 
