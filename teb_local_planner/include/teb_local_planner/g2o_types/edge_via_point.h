@@ -64,7 +64,7 @@ namespace teb_local_planner
  * @see TebOptimalPlanner::AddEdgesViaPoints
  * @remarks Do not forget to call setTebConfig() and setViaPoint()
  */     
-class EdgeViaPoint : public BaseTebUnaryEdge<1, const PoseSE2*, VertexPose>
+class EdgeViaPoint : public BaseTebUnaryEdge<2, const PoseSE2*, VertexPose>
 {
 public:
     
@@ -85,7 +85,7 @@ public:
     const VertexPose* bandpt = static_cast<const VertexPose*>(_vertices[0]);
 
     _error[0] = (bandpt->position() - _measurement->position()).norm(); // as in EdgeViaPoint
-    _error[1] = g2o::normalize_theta(bandpt->theta() - _measurement->theta());
+    _error[1] = std::pow(g2o::normalize_theta(bandpt->theta() - _measurement->theta()), 2.0);
 
     TEB_ASSERT_MSG(std::isfinite(_error[0]), "EdgeViaPoint::computeError() _error[0]=%f\n",_error[0]);
   }
@@ -98,7 +98,7 @@ public:
   {
     _measurement = via_point;
   }
-    
+
   /**
    * @brief Set all parameters at once
    * @param cfg TebConfig class

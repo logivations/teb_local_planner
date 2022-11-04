@@ -37,7 +37,7 @@
  *********************************************************************/
 
 #include "teb_local_planner/teb_local_planner_ros.h"
-
+#include "tf2/utils.h"
 //#include <tf_conversions/tf_eigen.h>
 #include <boost/algorithm/string.hpp>
 
@@ -651,12 +651,12 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
     if (distance_points2d( transformed_plan[prev_idx].pose.position, transformed_plan[i].pose.position ) < min_separation)
       continue;
 
-    tf::Quaternion q(
+    tf2::Quaternion q(
     	transformed_plan[i].pose.orientation.x,
 		transformed_plan[i].pose.orientation.y,
 		transformed_plan[i].pose.orientation.z,
 		transformed_plan[i].pose.orientation.w);
-    tf::Matrix3x3 m(q);
+    tf2::Matrix3x3 m(q);
     double roll, pitch, yaw;
     m.getRPY(roll, pitch, yaw);
         
@@ -1147,12 +1147,12 @@ void TebLocalPlannerROS::customViaPointsCB(const nav_msgs::msg::Path::ConstShare
   via_points_.clear();
   for (const geometry_msgs::msg::PoseStamped& pose : via_points_msg->poses)
   {
-    tf::Quaternion q(
+    tf2::Quaternion q(
 		pose.pose.orientation.x,
 		pose.pose.orientation.y,
 		pose.pose.orientation.z,
 		pose.pose.orientation.w);
-	tf::Matrix3x3 m(q);
+	tf2::Matrix3x3 m(q);
 	double roll, pitch, yaw;
 	m.getRPY(roll, pitch, yaw);
     via_points_.emplace_back(pose.pose.position.x, pose.pose.position.y, yaw);

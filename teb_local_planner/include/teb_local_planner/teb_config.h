@@ -336,7 +336,7 @@ public:
     optim.weight_dynamic_obstacle_inflation = 0.1;
     optim.weight_velocity_obstacle_ratio = 0;
     optim.weight_viapoint = 1;
-    optim.weight_viapoint_orientation = 1;
+    optim.weight_viapoint_orientation = 10.0;
     optim.weight_prefer_rotdir = 50;
 
     optim.weight_adapt_factor = 2.0;
