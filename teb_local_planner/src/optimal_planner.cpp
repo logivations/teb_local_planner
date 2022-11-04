@@ -468,8 +468,10 @@ void TebOptimalPlanner::AddEdgesObstacles(double weight_multiplier)
   
   bool inflated = cfg_->obstacles.inflation_dist > cfg_->obstacles.min_obstacle_dist;
 
-  Eigen::Matrix<double,1,1> information;
-  information.fill(cfg_->optim.weight_obstacle * weight_multiplier);
+  Eigen::Matrix<double,2,2> information;
+  information(0,0) = cfg_->optim.weight_viapoint;
+  information(1,1) = cfg_->optim.weight_viapoint_orientation;
+  information(0,1) = information(1,0) = 0;
   
   Eigen::Matrix<double,2,2> information_inflated;
   information_inflated(0,0) = cfg_->optim.weight_obstacle * weight_multiplier;
@@ -693,7 +695,7 @@ void TebOptimalPlanner::AddEdgesDynamicObstacles(double weight_multiplier)
 
 void TebOptimalPlanner::AddEdgesViaPoints()
 {
-  if (cfg_->optim.weight_viapoint==0 || via_points_==NULL || via_points_->empty() )
+  if ((cfg_->optim.weight_viapoint==0 && cfg_->optim.weight_viapoint_orientation==0) || via_points_==NULL || via_points_->empty() )
     return; // if weight equals zero skip adding edges!
 
   int start_pose_idx = 0;
@@ -704,8 +706,8 @@ void TebOptimalPlanner::AddEdgesViaPoints()
   
   for (ViaPointContainer::const_iterator vp_it = via_points_->begin(); vp_it != via_points_->end(); ++vp_it)
   {
-    
-    int index = teb_.findClosestTrajectoryPose(*vp_it, NULL, start_pose_idx);
+    PoseSE2 temp = *vp_it;
+    int index = teb_.findClosestTrajectoryPose(temp.position(), NULL, start_pose_idx);
     if (cfg_->trajectory.via_points_ordered)
       start_pose_idx = index+2; // skip a point to have a DOF inbetween for further via-points
      

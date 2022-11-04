@@ -127,6 +127,7 @@ void TebConfig::declareParameters(const nav2_util::LifecycleNode::SharedPtr nh, 
   declare_parameter_if_not_declared(nh, name + "." + "weight_dynamic_obstacle", rclcpp::ParameterValue(optim.weight_dynamic_obstacle));
   declare_parameter_if_not_declared(nh, name + "." + "weight_dynamic_obstacle_inflation", rclcpp::ParameterValue(optim.weight_dynamic_obstacle_inflation));
   declare_parameter_if_not_declared(nh, name + "." + "weight_viapoint", rclcpp::ParameterValue(optim.weight_viapoint));
+  declare_parameter_if_not_declared(nh, name + "." + "weight_viapoint_orientation", rclcpp::ParameterValue(optim.weight_viapoint_orientation));
   declare_parameter_if_not_declared(nh, name + "." + "weight_prefer_rotdir", rclcpp::ParameterValue(optim.weight_prefer_rotdir));
   declare_parameter_if_not_declared(nh, name + "." + "weight_adapt_factor", rclcpp::ParameterValue(optim.weight_adapt_factor));
   declare_parameter_if_not_declared(nh, name + "." + "obstacle_cost_exponent", rclcpp::ParameterValue(optim.obstacle_cost_exponent));
@@ -258,6 +259,7 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2_util::LifecycleNode::Share
   nh->get_parameter_or(name + "." + "weight_dynamic_obstacle", optim.weight_dynamic_obstacle, optim.weight_dynamic_obstacle);
   nh->get_parameter_or(name + "." + "weight_dynamic_obstacle_inflation", optim.weight_dynamic_obstacle_inflation, optim.weight_dynamic_obstacle_inflation);
   nh->get_parameter_or(name + "." + "weight_viapoint", optim.weight_viapoint, optim.weight_viapoint);
+  nh->get_parameter_or(name + "." + "weight_viapoint_orientation", optim.weight_viapoint_orientation, optim.weight_viapoint_orientation);
   nh->get_parameter_or(name + "." + "weight_prefer_rotdir", optim.weight_prefer_rotdir, optim.weight_prefer_rotdir);
   nh->get_parameter_or(name + "." + "weight_adapt_factor", optim.weight_adapt_factor, optim.weight_adapt_factor);
   nh->get_parameter_or(name + "." + "obstacle_cost_exponent", optim.obstacle_cost_exponent, optim.obstacle_cost_exponent);
@@ -418,6 +420,8 @@ void TebConfig::on_parameter_event_callback(
         optim.weight_dynamic_obstacle_inflation = value.double_value;
       } else if (name == node_name + ".weight_viapoint") {
         optim.weight_viapoint = value.double_value;
+      } else if (name == node_name + ".weight_viapoint_orientation") {
+        optim.weight_viapoint_orientation = value.double_value;
       } else if (name == node_name + ".weight_prefer_rotdir") {
         optim.weight_prefer_rotdir = value.double_value;
       } else if (name == node_name + ".weight_adapt_factor") {
