@@ -416,12 +416,6 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
       }
     }
   }
-  // we need to wait a bit, if a plan was infeasible
-  if((clock_->now() - time_last_infeasible_plan_).seconds()  < 4){
-    max_velocity_x = 0.0;
-    max_velocity_x_backwards = 0.0;
-    max_vel_theta = 0.0;
-  }
 
   // Get the velocity command for this sampling interval
   if (!planner_->getVelocityCommand(cmd_vel.twist.linear.x, cmd_vel.twist.linear.y, cmd_vel.twist.angular.z, cfg_->trajectory.control_look_ahead_poses))
