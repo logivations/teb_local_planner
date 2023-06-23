@@ -52,8 +52,6 @@
 #include "teb_local_planner/misc.h"
 
 #include <rclcpp/logging.hpp>
-#include <rclcpp/logging.hpp>
-#include <rcpputils/asserts.hpp>
 
 #include <exception>
 
