@@ -52,6 +52,8 @@
 #include "teb_local_planner/misc.h"
 
 #include <rclcpp/logging.hpp>
+#include <rclcpp/logging.hpp>
+#include <rcpputils/asserts.hpp>
 
 #include <exception>
 
@@ -295,7 +297,7 @@ public:
    */  
   void computeError()
   {
-    ROS_ASSERT_MSG(cfg_, "You must call setTebConfig on EdgeSteeringRate()");
+    TEB_ASSERT_MSG(cfg_, "You must call setTebConfig on EdgeSteeringRate()");
     const VertexPose* conf1 = static_cast<const VertexPose*>(_vertices[0]);
     const VertexPose* conf2 = static_cast<const VertexPose*>(_vertices[1]);
     const VertexPose* conf3 = static_cast<const VertexPose*>(_vertices[2]);
@@ -334,7 +336,7 @@ public:
     if (std::abs(dist2) < 1e-12)
     {
         phi2 = phi1;
-        ROS_INFO("phi 2 is phi1!");
+        RCLCPP_INFO(rclcpp::get_logger("teb_local_planner"), "phi 2 is phi1!");
     }
     else
     {
@@ -354,7 +356,7 @@ public:
 
     _error[0] = penaltyBoundToInterval(g2o::normalize_theta(phi2 - phi1)*2.0 / (dt1->dt() + dt2->dt()), cfg_->robot.max_steering_rate, 0.0);
 
-    ROS_ASSERT_MSG(std::isfinite(_error[0]), "EdgeSteeringRate::computeError() _error[0]\n",_error[0]);
+    TEB_ASSERT_MSG(std::isfinite(_error[0]), "EdgeSteeringRate::computeError() _error[0]=%f", _error[0]);
   }
 
 public:
@@ -381,7 +383,7 @@ public:
    */  
   void computeError()
   {
-    ROS_ASSERT_MSG(cfg_, "You must call setTebConfig on EdgeSteeringRateStart()");
+    TEB_ASSERT_MSG(cfg_, "You must call setTebConfig on EdgeSteeringRateStart()");
     const VertexPose* conf1 = static_cast<const VertexPose*>(_vertices[0]);
     const VertexPose* conf2 = static_cast<const VertexPose*>(_vertices[1]);
     const VertexTimeDiff* dt = static_cast<const VertexTimeDiff*>(_vertices[2]);
@@ -393,7 +395,7 @@ public:
     double phi;
     if (std::abs(dist) < 1e-12)
     {
-        ROS_INFO("Start phi equals pervious phi!");
+        RCLCPP_INFO(rclcpp::get_logger("teb_local_planner"), "Start phi equals pervious phi!");
         phi = _measurement;
     }
     else
@@ -414,7 +416,7 @@ public:
     _error[0] = penaltyBoundToInterval(g2o::normalize_theta(phi - _measurement) / dt->dt(), cfg_->robot.max_steering_rate, 0.0);
 
 
-    ROS_ASSERT_MSG(std::isfinite(_error[0]), "EdgeSteeringRateStart::computeError() _error[0]\n",_error[0]);
+    TEB_ASSERT_MSG(std::isfinite(_error[0]), "EdgeSteeringRateStart::computeError() _error[0]=%f", _error[0]);
   }
 
   void setInitialSteeringAngle(double steering_angle)
@@ -446,7 +448,7 @@ public:
    */  
   void computeError()
   {
-    ROS_ASSERT_MSG(cfg_, "You must call setTebConfig on EdgeSteeringRateGoal()");
+    TEB_ASSERT_MSG(cfg_, "You must call setTebConfig on EdgeSteeringRateGoal()");
     const VertexPose* conf1 = static_cast<const VertexPose*>(_vertices[0]);
     const VertexPose* conf2 = static_cast<const VertexPose*>(_vertices[1]);
     const VertexTimeDiff* dt = static_cast<const VertexTimeDiff*>(_vertices[2]);
@@ -458,8 +460,8 @@ public:
     double phi;
     if (std::abs(dist) < 1e-12)
     {
-      ROS_INFO("Goal phi is zero!");
-        phi = 0;
+      RCLCPP_INFO(rclcpp::get_logger("teb_local_planner"), "Goal phi is zero!");
+      phi = 0;
     }
     else
     {
@@ -478,7 +480,7 @@ public:
     _error[0] = penaltyBoundToInterval(g2o::normalize_theta(_measurement - phi) / dt->dt(), cfg_->robot.max_steering_rate, 0.0);
 
 
-    ROS_ASSERT_MSG(std::isfinite(_error[0]), "EdgeSteeringRateGoal::computeError() _error[0]\n",_error[0]);
+    TEB_ASSERT_MSG(std::isfinite(_error[0]), "EdgeSteeringRateGoal::computeError() _error[0]=%f",  _error[0]);
   }
 
   void setGoalSteeringAngle(double steering_angle)
