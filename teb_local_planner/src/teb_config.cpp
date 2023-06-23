@@ -80,6 +80,7 @@ void TebConfig::declareParameters(const nav2_util::LifecycleNode::SharedPtr nh, 
   declare_parameter_if_not_declared(nh, name + "." + "acc_lim_y", rclcpp::ParameterValue(robot.acc_lim_y));
   declare_parameter_if_not_declared(nh, name + "." + "acc_lim_theta", rclcpp::ParameterValue(robot.acc_lim_theta));
   declare_parameter_if_not_declared(nh, name + "." + "min_turning_radius", rclcpp::ParameterValue(robot.min_turning_radius));
+  declare_parameter_if_not_declared(nh, name + "." + "max_steering_rate", rclcpp::ParameterValue(robot.max_steering_rate));
   declare_parameter_if_not_declared(nh, name + "." + "wheelbase", rclcpp::ParameterValue(robot.wheelbase));
   declare_parameter_if_not_declared(nh, name + "." + "cmd_angle_instead_rotvel", rclcpp::ParameterValue(robot.cmd_angle_instead_rotvel));
   declare_parameter_if_not_declared(nh, name + "." + "is_footprint_dynamic", rclcpp::ParameterValue(robot.is_footprint_dynamic));
@@ -119,6 +120,7 @@ void TebConfig::declareParameters(const nav2_util::LifecycleNode::SharedPtr nh, 
   declare_parameter_if_not_declared(nh, name + "." + "weight_kinematics_nh", rclcpp::ParameterValue(optim.weight_kinematics_nh));
   declare_parameter_if_not_declared(nh, name + "." + "weight_kinematics_forward_drive", rclcpp::ParameterValue(optim.weight_kinematics_forward_drive));
   declare_parameter_if_not_declared(nh, name + "." + "weight_kinematics_turning_radius", rclcpp::ParameterValue(optim.weight_kinematics_turning_radius));
+  declare_parameter_if_not_declared(nh, name + "." + "weight_max_steering_rate", rclcpp::ParameterValue(optim.weight_max_steering_rate));
   declare_parameter_if_not_declared(nh, name + "." + "weight_optimaltime", rclcpp::ParameterValue(optim.weight_optimaltime));
   declare_parameter_if_not_declared(nh, name + "." + "weight_shortest_path", rclcpp::ParameterValue(optim.weight_shortest_path));
   declare_parameter_if_not_declared(nh, name + "." + "weight_obstacle", rclcpp::ParameterValue(optim.weight_obstacle));
@@ -213,6 +215,7 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2_util::LifecycleNode::Share
   nh->get_parameter_or(name + "." + "acc_lim_y", robot.acc_lim_y, robot.acc_lim_y);
   nh->get_parameter_or(name + "." + "acc_lim_theta", robot.acc_lim_theta, robot.acc_lim_theta);
   nh->get_parameter_or(name + "." + "min_turning_radius", robot.min_turning_radius, robot.min_turning_radius);
+  nh->get_parameter_or(name + "." + "max_steering_rate", robot.max_steering_rate, robot.max_steering_rate);
   nh->get_parameter_or(name + "." + "wheelbase", robot.wheelbase, robot.wheelbase);
   nh->get_parameter_or(name + "." + "cmd_angle_instead_rotvel", robot.cmd_angle_instead_rotvel, robot.cmd_angle_instead_rotvel);
   nh->get_parameter_or(name + "." + "is_footprint_dynamic", robot.is_footprint_dynamic, robot.is_footprint_dynamic);
@@ -252,6 +255,7 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2_util::LifecycleNode::Share
   nh->get_parameter_or(name + "." + "weight_kinematics_nh", optim.weight_kinematics_nh, optim.weight_kinematics_nh);
   nh->get_parameter_or(name + "." + "weight_kinematics_forward_drive", optim.weight_kinematics_forward_drive, optim.weight_kinematics_forward_drive);
   nh->get_parameter_or(name + "." + "weight_kinematics_turning_radius", optim.weight_kinematics_turning_radius, optim.weight_kinematics_turning_radius);
+  nh->get_parameter_or(name + "." + "weight_max_steering_rate", optim.weight_max_steering_rate, optim.weight_max_steering_rate);
   nh->get_parameter_or(name + "." + "weight_optimaltime", optim.weight_optimaltime, optim.weight_optimaltime);
   nh->get_parameter_or(name + "." + "weight_shortest_path", optim.weight_shortest_path, optim.weight_shortest_path);
   nh->get_parameter_or(name + "." + "weight_obstacle", optim.weight_obstacle, optim.weight_obstacle);
@@ -496,6 +500,8 @@ rcl_interfaces::msg::SetParametersResult
         robot.acc_lim_theta = parameter.as_double();
       } else if (name == node_name + ".min_turning_radius") {
         robot.min_turning_radius = parameter.as_double();
+      } else if (name == node_name + ".max_steering_rate") {
+        robot.max_steering_rate = parameter.as_double();
       } else if (name == node_name + ".wheelbase") {
         robot.wheelbase = parameter.as_double();
       }
@@ -541,6 +547,8 @@ rcl_interfaces::msg::SetParametersResult
         optim.weight_kinematics_forward_drive = parameter.as_double();
       } else if (name == node_name + ".weight_kinematics_turning_radius") {
         optim.weight_kinematics_turning_radius = parameter.as_double();
+      } else if (name == node_name + ".weight_max_steering_rate") {
+        optim.weight_max_steering_rate = parameter.as_double();
       } else if (name == node_name + ".weight_optimaltime") {
         optim.weight_optimaltime = parameter.as_double();
       } else if (name == node_name + ".weight_shortest_path") {

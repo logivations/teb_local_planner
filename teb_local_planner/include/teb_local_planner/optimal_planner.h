@@ -677,6 +677,14 @@ protected:
   void AddEdgesKinematicsCarlike();
   
   /**
+   * @brief Add all edges (local cost functions) for satisfying a maximum steering rate of a carlike robot
+   * @warning requires a valid wheelbase parameter value!
+   * @see buildGraph
+   * @see optimizeGraph
+   */
+  void AddEdgesSteeringRate();
+  
+  /**
    * @brief Add all edges (local cost functions) for prefering a specifiy turning direction (by penalizing the other one)
    * @see buildGraph
    * @see optimizeGraph
@@ -716,6 +724,7 @@ protected:
   std::shared_ptr<g2o::SparseOptimizer> optimizer_; //!< g2o optimizer for trajectory optimization
   std::pair<bool, geometry_msgs::msg::Twist> vel_start_; //!< Store the initial velocity at the start pose
   std::pair<bool, geometry_msgs::msg::Twist> vel_goal_; //!< Store the final velocity at the goal pose
+  double recent_steering_angle_ = 0.0; //!< Store last measured steering angle (for car-like setup)
 
   bool initialized_; //!< Keeps track about the correct initialization of this class
   bool optimized_; //!< This variable is \c true as long as the last optimization has been completed successful

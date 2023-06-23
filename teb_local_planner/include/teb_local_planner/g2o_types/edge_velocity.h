@@ -275,7 +275,7 @@ public:
  * @brief Edge defining the cost function for limiting the steering rate w.r.t. the current wheelbase parameter
  *
  * The edge depends on four vertices \f$ \mathbf{s}_i, \mathbf{s}_{ip1}, \mathbf{s}_{ip2} \Delta T_i \f$ .
- * @remarks This edge requires the TebConfig::Robot::whelbase parameter to be set.
+ * @remarks This edge requires the TebConfig::Robot::wheelbase parameter to be set.
  * @remarks Do not forget to call setTebConfig()
  */ 
 class EdgeSteeringRate : public BaseTebMultiEdge<1, double>
