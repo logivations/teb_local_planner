@@ -116,6 +116,7 @@ public:
   void activate() override;
   void deactivate() override;
   void cleanup() override;
+  void reset() override;
 
   /**
     * @brief Initializes the teb plugin
