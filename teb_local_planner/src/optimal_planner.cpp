@@ -1024,9 +1024,6 @@ void TebOptimalPlanner::AddEdgesVelocityObstacleRatio()
 
 bool TebOptimalPlanner::hasDiverged() const
 {
-  // Early returns if divergence detection is not active
-  if (!cfg_->recovery.divergence_detection_enable)
-    return false;
 
   auto stats_vector = optimizer_->batchStatistics();
 
@@ -1036,6 +1033,13 @@ bool TebOptimalPlanner::hasDiverged() const
 
   // Grab the statistics of the final iteration
   const auto last_iter_stats = stats_vector.back();
+
+  // publish chi2
+  visualization_->publishChi2(last_iter_stats.chi2);
+
+  // Return if divergence detection is not active
+  if (!cfg_->recovery.divergence_detection_enable)
+    return false;
 
   return last_iter_stats.chi2 > cfg_->recovery.divergence_detection_max_chi_squared;
 }
