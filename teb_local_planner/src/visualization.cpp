@@ -493,6 +493,12 @@ void TebVisualization::publishFeedbackMessage(const TebOptimalPlanner& teb_plann
   feedback_pub_->publish(msg);
 }
 
+void TebVisualization::publishChi2(const double &chi2) {
+  std_msgs::msg::Float64 msg;
+  msg.data = chi2;
+  chi2_pub_->publish(msg);
+}
+
 std_msgs::msg::ColorRGBA TebVisualization::toColorMsg(double a, double r, double g, double b)
 {
   std_msgs::msg::ColorRGBA color;
@@ -521,6 +527,7 @@ nav2_util::CallbackReturn TebVisualization::on_configure()
   teb_poses_pub_ = nh_->create_publisher<geometry_msgs::msg::PoseArray>("teb_poses", 1);
   teb_marker_pub_ = nh_->create_publisher<visualization_msgs::msg::Marker>("teb_markers", 1);
   feedback_pub_ = nh_->create_publisher<teb_msgs::msg::FeedbackMsg>("teb_feedback", 1);
+  chi2_pub_ = nh_->create_publisher<std_msgs::msg::Float64>("chi2", 1);
 
   initialized_ = true;
   return nav2_util::CallbackReturn::SUCCESS;
@@ -534,6 +541,7 @@ TebVisualization::on_activate()
   teb_poses_pub_->on_activate();
   teb_marker_pub_->on_activate();
   feedback_pub_->on_activate();
+  chi2_pub_->on_activate();
   return nav2_util::CallbackReturn::SUCCESS;
 }
 
@@ -545,6 +553,7 @@ TebVisualization::on_deactivate()
   teb_poses_pub_->on_deactivate();
   teb_marker_pub_->on_deactivate();
   feedback_pub_->on_deactivate();
+  chi2_pub_->on_deactivate();
   return nav2_util::CallbackReturn::SUCCESS;
 }
 
@@ -556,6 +565,7 @@ TebVisualization::on_cleanup()
   teb_poses_pub_.reset();
   teb_marker_pub_.reset();
   feedback_pub_.reset();
+  chi2_pub_.reset();
 
   return nav2_util::CallbackReturn::SUCCESS;
 }
