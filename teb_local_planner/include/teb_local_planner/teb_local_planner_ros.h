@@ -59,6 +59,7 @@
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <visualization_msgs/msg/marker.hpp>
 #include <costmap_converter_msgs/msg/obstacle_msg.hpp>
+#include <std_msgs/msg/bool.hpp>
 
 // transforms
 #include <tf2_ros/transform_listener.h>
@@ -112,7 +113,8 @@ public:
     const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
     std::string name,
     std::shared_ptr<tf2_ros::Buffer> tf,
-    std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
+    std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros,
+    std::shared_ptr<nav2_costmap_2d::Costmap2DROS> sensor_costmap_ros) override;
   void activate() override;
   void deactivate() override;
   void cleanup() override;
@@ -370,10 +372,13 @@ private:
   rclcpp::Node::SharedPtr intra_proc_node_;
   // external objects (store weak pointers)
   CostmapROSPtr costmap_ros_; //!< Pointer to the costmap ros wrapper, received from the navigation stack
+  CostmapROSPtr sensor_costmap_ros_; //!< Pointer to the sensor costmap ros wrapper, received from the navigation stack
   nav2_costmap_2d::Costmap2D* costmap_; //!< Pointer to the 2d costmap (obtained from the costmap ros wrapper)
+  nav2_costmap_2d::Costmap2D* sensor_costmap_; //!< Pointer to the 2d sensor costmap (obtained from the costmap ros wrapper)
   TFBufferPtr tf_; //!< pointer to Transform Listener
   TebConfig::UniquePtr cfg_; //!< Config class that stores and manages all related parameters
-    
+  rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::Bool>::SharedPtr traffic_jam_pub_; //!< Publisher for the feedback message for analysis and debug purposes
+
   // internal objects (memory management owned)
   PlannerInterfacePtr planner_; //!< Instance of the underlying optimal planner class
   ObstContainer obstacles_; //!< Obstacle vector that should be considered during local trajectory optimization

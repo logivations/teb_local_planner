@@ -68,7 +68,7 @@ namespace teb_local_planner
   
 
 TebLocalPlannerROS::TebLocalPlannerROS() 
-    : costmap_ros_(nullptr), tf_(nullptr), cfg_(new TebConfig()), costmap_model_(nullptr), intra_proc_node_(nullptr),
+    : costmap_ros_(nullptr),sensor_costmap_ros_(nullptr), tf_(nullptr), cfg_(new TebConfig()), costmap_model_(nullptr), intra_proc_node_(nullptr),
                                            costmap_converter_loader_("costmap_converter", "costmap_converter::BaseCostmapToPolygons"),
                                            custom_via_points_active_(false), no_infeasible_plans_(0),
                                            last_preferred_rotdir_(RotType::none), initialized_(false)
@@ -109,10 +109,11 @@ void TebLocalPlannerROS::initialize(nav2_util::LifecycleNode::SharedPtr node)
     
     // init other variables
     costmap_ = costmap_ros_->getCostmap(); // locking should be done in MoveBase.
-    
+    sensor_costmap_ = sensor_costmap_ros_->getCostmap(); // locking should be done in MoveBase.
+
     costmap_model_ = std::make_shared<dwb_critics::ObstacleFootprintCritic>();
     std::string costmap_model_name("costmap_model");
-    costmap_model_->initialize(node, costmap_model_name, name_, costmap_ros_);
+    costmap_model_->initialize(node, costmap_model_name, name_, sensor_costmap_ros_);
 
     cfg_->map_frame = costmap_ros_->getGlobalFrameID(); // TODO
 
@@ -196,7 +197,8 @@ void TebLocalPlannerROS::configure(
     const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
     std::string name,
     std::shared_ptr<tf2_ros::Buffer> tf,
-    std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) {
+    std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros,
+    std::shared_ptr<nav2_costmap_2d::Costmap2DROS> sensor_costmap_ros) {
   nh_ = parent;
 
   auto node = nh_.lock();
@@ -204,6 +206,7 @@ void TebLocalPlannerROS::configure(
   clock_ = node->get_clock();
 
   costmap_ros_ = costmap_ros;
+  sensor_costmap_ros_ = sensor_costmap_ros;
   tf_ = tf;
   name_ = name;
 
@@ -211,6 +214,8 @@ void TebLocalPlannerROS::configure(
   visualization_ = std::make_shared<TebVisualization>(node, *cfg_);
   visualization_->on_configure();
   planner_->setVisualization(visualization_);
+
+  traffic_jam_pub_ = node->create_publisher<std_msgs::msg::Bool>("traffic_jam", 1);
   
   return;
 }
@@ -410,6 +415,10 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
         max_velocity_x_backwards = 0.0;
         max_vel_theta = 0.0;
         time_last_infeasible_plan_ = clock_->now();
+
+        auto msg = std_msgs::msg::Bool();
+        msg.data = true;
+        traffic_jam_pub_->publish(msg);
       }
       else {
         max_velocity_x = max_velocity_x * (double)(unfeasible_pose - cfg_->trajectory.feasibility_check_stop_poses) / (double)(cfg_->trajectory.feasibility_check_no_poses -  cfg_->trajectory.feasibility_check_stop_poses);
@@ -1122,16 +1131,20 @@ void TebLocalPlannerROS::customViaPointsCB(const nav_msgs::msg::Path::ConstShare
 }
 
 void TebLocalPlannerROS::activate() {
+
+  traffic_jam_pub_->on_activate();
   visualization_->on_activate();
 
   return;
 }
 void TebLocalPlannerROS::deactivate() {
+  traffic_jam_pub_->on_deactivate();
   visualization_->on_deactivate();
 
   return;
 }
 void TebLocalPlannerROS::cleanup() {
+  traffic_jam_pub_.reset();
   visualization_->on_cleanup();
   costmap_converter_->stopWorker();
   
