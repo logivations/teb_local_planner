@@ -946,7 +946,7 @@ double TebLocalPlannerROS::convertTransRotVelToSteeringAngle(double v, double om
   double radius = v/omega;
   
   if (fabs(radius) < min_turning_radius)
-    radius = double(g2o::sign(radius)) * min_turning_radius; 
+    radius = double(sign(radius)) * min_turning_radius;
 
   return std::atan(wheelbase / radius);
 }
