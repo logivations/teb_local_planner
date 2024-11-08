@@ -121,8 +121,8 @@ void TebLocalPlannerROS::initialize(nav2_util::LifecycleNode::SharedPtr node)
     {
       try
       {
-        intra_proc_node_.reset( 
-            new rclcpp::Node("costmap_converter", node->get_namespace(), 
+        intra_proc_node_.reset(
+            new rclcpp::Node("costmap_converter", node->get_namespace(),
               rclcpp::NodeOptions()));
         costmap_converter_ = costmap_converter_loader_.createSharedInstance(cfg_->obstacles.costmap_converter_plugin);
         std::string converter_name = costmap_converter_loader_.getName(cfg_->obstacles.costmap_converter_plugin);
@@ -151,7 +151,7 @@ void TebLocalPlannerROS::initialize(nav2_util::LifecycleNode::SharedPtr node)
     
     // Get footprint of the robot and minimum and maximum distance from the center of the robot to its footprint vertices.
     footprint_spec_ = costmap_ros_->getRobotFootprint();
-    nav2_costmap_2d::calculateMinAndMaxDistances(footprint_spec_, robot_inscribed_radius_, robot_circumscribed_radius);
+    std::tie(robot_inscribed_radius_, robot_circumscribed_radius) = nav2_costmap_2d::calculateMinAndMaxDistances(footprint_spec_);
 
     // Add callback for dynamic parameters
     dyn_params_handler = node->add_on_set_parameters_callback(
@@ -392,7 +392,7 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
     std::vector<geometry_msgs::msg::Point> updated_footprint_spec_ = costmap_ros_->getRobotFootprint();
     if (updated_footprint_spec_ != footprint_spec_) {
       updated_footprint_spec_ = footprint_spec_;
-      nav2_costmap_2d::calculateMinAndMaxDistances(updated_footprint_spec_, robot_inscribed_radius_, robot_circumscribed_radius);
+      std::tie(robot_inscribed_radius_, robot_circumscribed_radius) = nav2_costmap_2d::calculateMinAndMaxDistances(updated_footprint_spec_);
     }
   }
   int unfeasible_pose = -2;
@@ -721,7 +721,7 @@ bool TebLocalPlannerROS::transformGlobalPlan(const std::vector<geometry_msgs::ms
 
     // get plan_to_global_transform from plan frame to global_frame
     geometry_msgs::msg::TransformStamped plan_to_global_transform = tf_->lookupTransform(
-                global_frame, plan_pose.header.frame_id, 
+                global_frame, plan_pose.header.frame_id,
                 tf2::timeFromSec(0), tf2::durationFromSec(0.5));
 
 //    tf_->waitForTransform(global_frame, ros::Time::now(),
