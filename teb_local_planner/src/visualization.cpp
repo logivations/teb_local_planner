@@ -529,7 +529,6 @@ nav2_util::CallbackReturn TebVisualization::on_configure()
 nav2_util::CallbackReturn 
 TebVisualization::on_activate()
 {
-  global_plan_pub_->on_activate();
   local_plan_pub_->on_activate();
   teb_poses_pub_->on_activate();
   teb_marker_pub_->on_activate();
@@ -541,7 +540,6 @@ TebVisualization::on_activate()
 nav2_util::CallbackReturn 
 TebVisualization::on_deactivate()
 {
-  global_plan_pub_->on_deactivate();
   local_plan_pub_->on_deactivate();
   teb_poses_pub_->on_deactivate();
   teb_marker_pub_->on_deactivate();
@@ -553,7 +551,6 @@ TebVisualization::on_deactivate()
 nav2_util::CallbackReturn 
 TebVisualization::on_cleanup()
 {
-  global_plan_pub_.reset();
   local_plan_pub_.reset();
   teb_poses_pub_.reset();
   teb_marker_pub_.reset();
