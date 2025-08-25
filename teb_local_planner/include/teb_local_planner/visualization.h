@@ -91,13 +91,7 @@ public:
   
   /** @name Publish to topics */
   //@{
-  
-  /**
-   * @brief Publish a given global plan to the ros topic \e ../../global_plan
-   * @param global_plan Pose array describing the global plan
-   */
-  void publishGlobalPlan(const std::vector<geometry_msgs::msg::PoseStamped>& global_plan) const;
-  
+
   /**
    * @brief Publish a given local plan to the ros topic \e ../../local_plan
    * @param local_plan Pose array describing the local plan
