@@ -465,6 +465,7 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
   planner_->visualize();
   visualization_->publishObstacles(obstacles_);
   visualization_->publishViaPoints(via_points_);
+  visualization_->publishGlobalPlan(global_plan_);
 
   return cmd_vel;
 }
