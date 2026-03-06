@@ -17,10 +17,10 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(costmap_converter REQUIRED)
 find_package(dwb_critics REQUIRED)
-find_package(nav_2d_utils REQUIRED)
 find_package(nav2_core REQUIRED)
 find_package(nav2_costmap_2d REQUIRED)
 find_package(nav2_util REQUIRED)
+find_package(nav2_ros_common REQUIRED)
 #find_package(interactive_markers REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
@@ -87,10 +87,10 @@ add_library(teb_local_planner SHARED
 set(ament_dependencies
     costmap_converter
     dwb_critics
-    nav_2d_utils
     nav2_core
     nav2_costmap_2d
     nav2_util
+    nav2_ros_common
     geometry_msgs
     nav_msgs
     rclcpp

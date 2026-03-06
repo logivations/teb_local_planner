@@ -38,6 +38,8 @@
 
 #include <tf2/time.h>
 #include <tf2_ros/buffer_interface.h>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 #include "teb_local_planner/optimal_planner.h"
 
@@ -67,7 +69,7 @@ TebOptimalPlanner::TebOptimalPlanner() : cfg_(nullptr), obstacles_(NULL), via_po
 {    
 }
   
-TebOptimalPlanner::TebOptimalPlanner(nav2_util::LifecycleNode::SharedPtr node, const TebConfig& cfg, ObstContainer* obstacles, TebVisualizationPtr visual, const ViaPointContainer* via_points)
+TebOptimalPlanner::TebOptimalPlanner(nav2::LifecycleNode::SharedPtr node, const TebConfig& cfg, ObstContainer* obstacles, TebVisualizationPtr visual, const ViaPointContainer* via_points)
 {    
   initialize(node, cfg, obstacles, visual, via_points);
 }
@@ -82,7 +84,7 @@ TebOptimalPlanner::~TebOptimalPlanner()
   //g2o::HyperGraphActionLibrary::destroy();
 }
 
-void TebOptimalPlanner::initialize(nav2_util::LifecycleNode::SharedPtr node, const TebConfig& cfg, ObstContainer* obstacles, TebVisualizationPtr visual, const ViaPointContainer* via_points)
+void TebOptimalPlanner::initialize(nav2::LifecycleNode::SharedPtr node, const TebConfig& cfg, ObstContainer* obstacles, TebVisualizationPtr visual, const ViaPointContainer* via_points)
 {    
   node_ = node;
   // init optimizer (set solver and block ordering settings)
@@ -1318,7 +1320,14 @@ bool TebOptimalPlanner::isPoseValid(geometry_msgs::msg::Pose2D pose2d, dwb_criti
                            const std::vector<geometry_msgs::msg::Point>& footprint_spec)
 {
   try {
-    if ( costmap_model->scorePose(pose2d, dwb_critics::getOrientedFootprint(pose2d, footprint_spec)) > 0 ) {
+    geometry_msgs::msg::Pose pose;
+    pose.position.x = pose2d.x;
+    pose.position.y = pose2d.y;
+    pose.position.z = 0.0;
+    tf2::Quaternion q;
+    q.setRPY(0, 0, pose2d.theta);
+    pose.orientation = tf2::toMsg(q);
+    if ( costmap_model->scorePose(pose, dwb_critics::getOrientedFootprint(pose, footprint_spec)) > 0 ) {
       return false;
     }
   } catch (...) {

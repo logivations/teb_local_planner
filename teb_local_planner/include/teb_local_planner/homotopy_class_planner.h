@@ -125,7 +125,7 @@ public:
    * @param visualization Shared pointer to the TebVisualization class (optional)
    * @param via_points Container storing via-points (optional)
    */
-  HomotopyClassPlanner(nav2_util::LifecycleNode::SharedPtr node, const TebConfig& cfg, ObstContainer* obstacles = NULL,
+  HomotopyClassPlanner(nav2::LifecycleNode::SharedPtr node, const TebConfig& cfg, ObstContainer* obstacles = NULL,
                        TebVisualizationPtr visualization = TebVisualizationPtr(), const ViaPointContainer* via_points = NULL);
 
   /**
@@ -141,7 +141,7 @@ public:
    * @param visualization Shared pointer to the TebVisualization class (optional)
    * @param via_points Container storing via-points (optional)
    */
-  void initialize(nav2_util::LifecycleNode::SharedPtr node, const TebConfig& cfg, ObstContainer* obstacles = NULL,
+  void initialize(nav2::LifecycleNode::SharedPtr node, const TebConfig& cfg, ObstContainer* obstacles = NULL,
                   TebVisualizationPtr visualization = TebVisualizationPtr(), const ViaPointContainer* via_points = NULL);
 
   /** @name Plan a trajectory */

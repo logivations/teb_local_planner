@@ -47,7 +47,7 @@ HomotopyClassPlanner::HomotopyClassPlanner() : cfg_(NULL), obstacles_(NULL), via
 {
 }
 
-HomotopyClassPlanner::HomotopyClassPlanner(nav2_util::LifecycleNode::SharedPtr node, const TebConfig& cfg, ObstContainer* obstacles,
+HomotopyClassPlanner::HomotopyClassPlanner(nav2::LifecycleNode::SharedPtr node, const TebConfig& cfg, ObstContainer* obstacles,
                                            TebVisualizationPtr visual, const ViaPointContainer* via_points) : initial_plan_(NULL)
 {
   initialize(node, cfg, obstacles, visual, via_points);
@@ -57,7 +57,7 @@ HomotopyClassPlanner::~HomotopyClassPlanner()
 {
 }
 
-void HomotopyClassPlanner::initialize(nav2_util::LifecycleNode::SharedPtr node, const TebConfig& cfg, ObstContainer* obstacles,
+void HomotopyClassPlanner::initialize(nav2::LifecycleNode::SharedPtr node, const TebConfig& cfg, ObstContainer* obstacles,
                                       TebVisualizationPtr visual, const ViaPointContainer* via_points)
 {
   node_ = node;

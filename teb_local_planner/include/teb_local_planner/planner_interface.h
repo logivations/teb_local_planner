@@ -53,7 +53,7 @@
 
 #include <nav2_costmap_2d/costmap_2d.hpp>
 
-#include <nav2_util/lifecycle_node.hpp>
+#include <nav2_ros_common/lifecycle_node.hpp>
 
 // messages
 #include <geometry_msgs/msg/pose_array.hpp>
@@ -206,7 +206,7 @@ public:
    */
   virtual bool hasDiverged() const = 0;
 
-  nav2_util::LifecycleNode::SharedPtr node_{nullptr};
+  nav2::LifecycleNode::SharedPtr node_{nullptr};
 };
 
 //! Abbrev. for shared instances of PlannerInterface or it's subclasses 

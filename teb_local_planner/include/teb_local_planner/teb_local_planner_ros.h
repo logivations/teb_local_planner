@@ -68,9 +68,8 @@
 #include <costmap_converter/costmap_converter_interface.h>
 #include "nav2_costmap_2d/costmap_filters/filter_values.hpp"
 
-#include <nav2_util/lifecycle_node.hpp>
+#include <nav2_ros_common/lifecycle_node.hpp>
 #include <nav2_costmap_2d/costmap_2d_ros.hpp>
-#include <nav_2d_utils/parameters.hpp>
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
 // dynamic reconfigure
 //#include "teb_local_planner/TebLocalPlannerReconfigureConfig.h>
@@ -109,7 +108,7 @@ public:
    * @param costmap_ros Cost map representing occupied and free space
    */
   void configure(
-    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
+    const nav2::LifecycleNode::WeakPtr & parent,
     std::string name,
     std::shared_ptr<tf2_ros::Buffer> tf,
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
@@ -121,14 +120,14 @@ public:
   /**
     * @brief Initializes the teb plugin
     */
-  void initialize(nav2_util::LifecycleNode::SharedPtr node);
+  void initialize(nav2::LifecycleNode::SharedPtr node);
 
   /**
     * @brief Set the plan that the teb local planner is following
     * @param orig_global_plan The plan to pass to the local planner
     * @return
     */
-  void setPlan(const nav_msgs::msg::Path & orig_global_plan) override;
+  void newPathReceived(const nav_msgs::msg::Path & orig_global_plan) override;
 
   /**
     * @brief Given the current position, orientation, and velocity of the robot, compute velocity commands to send to the base
@@ -139,7 +138,9 @@ public:
   geometry_msgs::msg::TwistStamped computeVelocityCommands(
     const geometry_msgs::msg::PoseStamped &pose,
     const geometry_msgs::msg::Twist &velocity,
-      nav2_core::GoalChecker * goal_checker);
+    nav2_core::GoalChecker * goal_checker,
+    const nav_msgs::msg::Path & transformed_global_plan,
+    const geometry_msgs::msg::PoseStamped & global_goal) override;
   
     
   /** @name Public utility functions/methods */
@@ -159,7 +160,7 @@ public:
    * @param nh const reference to the local rclcpp::Node::SharedPtr
    * @return Robot footprint model used for optimization
    */
-  RobotFootprintModelPtr getRobotFootprintFromParamServer(nav2_util::LifecycleNode::SharedPtr node);
+  RobotFootprintModelPtr getRobotFootprintFromParamServer(nav2::LifecycleNode::SharedPtr node);
   
   /** 
    * @brief Set the footprint from the given XmlRpcValue.
@@ -364,7 +365,7 @@ protected:
 
 private:
   // Definition of member variables
-  rclcpp_lifecycle::LifecycleNode::WeakPtr nh_;
+  nav2::LifecycleNode::WeakPtr nh_;
   rclcpp::Logger logger_{rclcpp::get_logger("TEBLocalPlanner")};
   rclcpp::Clock::SharedPtr clock_;
   rclcpp::Node::SharedPtr intra_proc_node_;
