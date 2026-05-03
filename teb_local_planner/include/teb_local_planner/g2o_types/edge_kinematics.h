@@ -211,10 +211,17 @@ public:
     double angle_diff = g2o::normalize_theta( conf2->theta() - conf1->theta() );
     if (angle_diff == 0)
       _error[1] = 0; // straight line motion
-    else if (cfg_->trajectory.exact_arc_length) // use exact computation of the radius
-      _error[1] = penaltyBoundFromBelow(fabs(deltaS.norm()/(2*sin(angle_diff/2))), cfg_->robot.min_turning_radius, 0.0);
     else
-      _error[1] = penaltyBoundFromBelow(deltaS.norm() / fabs(angle_diff), cfg_->robot.min_turning_radius, 0.0); 
+    {
+      // Right turns (clockwise, angle_diff < 0) use a separate bound when configured (>0); otherwise fall back to the symmetric value.
+      const double min_radius = (angle_diff < 0 && cfg_->robot.min_turning_radius_right > 0.0)
+                                  ? cfg_->robot.min_turning_radius_right
+                                  : cfg_->robot.min_turning_radius;
+      if (cfg_->trajectory.exact_arc_length) // use exact computation of the radius
+        _error[1] = penaltyBoundFromBelow(fabs(deltaS.norm()/(2*sin(angle_diff/2))), min_radius, 0.0);
+      else
+        _error[1] = penaltyBoundFromBelow(deltaS.norm() / fabs(angle_diff), min_radius, 0.0);
+    }
     // This edge is not affected by the epsilon parameter, the user might add an exra margin to the min_turning_radius parameter.
     
     TEB_ASSERT_MSG(std::isfinite(_error[0]) && std::isfinite(_error[1]), "EdgeKinematicsCarlike::computeError() _error[0]=%f _error[1]=%f\n",_error[0],_error[1]);

@@ -112,7 +112,8 @@ public:
     double acc_lim_x; //!< Maximum translational acceleration of the robot
     double acc_lim_y; //!< Maximum strafing acceleration of the robot
     double acc_lim_theta; //!< Maximum angular acceleration of the robot
-    double min_turning_radius; //!< Minimum turning radius of a carlike robot (diff-drive robot: zero);
+    double min_turning_radius; //!< Minimum turning radius of a carlike robot (diff-drive robot: zero); applied to left turns when min_turning_radius_right is non-zero, otherwise to both directions
+    double min_turning_radius_right; //!< Minimum turning radius for right turns (carlike robot). If 0.0 (default), min_turning_radius is used for both directions.
     double wheelbase; //!< The distance between the drive shaft and steering axle (only required for a carlike robot with 'cmd_angle_instead_rotvel' enabled); The value might be negative for back-wheeled robots!
     bool cmd_angle_instead_rotvel; //!< Substitute the rotational velocity in the commanded velocity message by the corresponding steering angle (check 'axles_distance')
     bool is_footprint_dynamic; //<! If true, updated the footprint before checking trajectory feasibility
@@ -290,6 +291,7 @@ public:
     robot.acc_lim_y = 0.5;
     robot.acc_lim_theta = 0.5;
     robot.min_turning_radius = 0;
+    robot.min_turning_radius_right = 0;
     robot.wheelbase = 1.0;
     robot.cmd_angle_instead_rotvel = false;
     robot.is_footprint_dynamic = false;

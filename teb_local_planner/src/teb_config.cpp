@@ -80,6 +80,7 @@ void TebConfig::declareParameters(const nav2::LifecycleNode::SharedPtr nh, const
   declare_parameter_if_not_declared(nh, name + "." + "acc_lim_y", rclcpp::ParameterValue(robot.acc_lim_y));
   declare_parameter_if_not_declared(nh, name + "." + "acc_lim_theta", rclcpp::ParameterValue(robot.acc_lim_theta));
   declare_parameter_if_not_declared(nh, name + "." + "min_turning_radius", rclcpp::ParameterValue(robot.min_turning_radius));
+  declare_parameter_if_not_declared(nh, name + "." + "min_turning_radius_right", rclcpp::ParameterValue(robot.min_turning_radius_right));
   declare_parameter_if_not_declared(nh, name + "." + "wheelbase", rclcpp::ParameterValue(robot.wheelbase));
   declare_parameter_if_not_declared(nh, name + "." + "cmd_angle_instead_rotvel", rclcpp::ParameterValue(robot.cmd_angle_instead_rotvel));
   declare_parameter_if_not_declared(nh, name + "." + "is_footprint_dynamic", rclcpp::ParameterValue(robot.is_footprint_dynamic));
@@ -213,6 +214,7 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2::LifecycleNode::SharedPtr 
   nh->get_parameter_or(name + "." + "acc_lim_y", robot.acc_lim_y, robot.acc_lim_y);
   nh->get_parameter_or(name + "." + "acc_lim_theta", robot.acc_lim_theta, robot.acc_lim_theta);
   nh->get_parameter_or(name + "." + "min_turning_radius", robot.min_turning_radius, robot.min_turning_radius);
+  nh->get_parameter_or(name + "." + "min_turning_radius_right", robot.min_turning_radius_right, robot.min_turning_radius_right);
   nh->get_parameter_or(name + "." + "wheelbase", robot.wheelbase, robot.wheelbase);
   nh->get_parameter_or(name + "." + "cmd_angle_instead_rotvel", robot.cmd_angle_instead_rotvel, robot.cmd_angle_instead_rotvel);
   nh->get_parameter_or(name + "." + "is_footprint_dynamic", robot.is_footprint_dynamic, robot.is_footprint_dynamic);
@@ -496,6 +498,8 @@ rcl_interfaces::msg::SetParametersResult
         robot.acc_lim_theta = parameter.as_double();
       } else if (name == node_name + ".min_turning_radius") {
         robot.min_turning_radius = parameter.as_double();
+      } else if (name == node_name + ".min_turning_radius_right") {
+        robot.min_turning_radius_right = parameter.as_double();
       } else if (name == node_name + ".wheelbase") {
         robot.wheelbase = parameter.as_double();
       }
