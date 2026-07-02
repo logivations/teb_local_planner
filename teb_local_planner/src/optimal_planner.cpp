@@ -490,9 +490,11 @@ void TebOptimalPlanner::AddEdgesObstacles(double weight_multiplier)
     };
   };
     
-  // iterate all teb points, skipping the last and, if the EdgeVelocityObstacleRatio edges should not be created, the first one too
+  // iterate all teb points, skipping the last (unless it is released for goal adjustment) and,
+  // if the EdgeVelocityObstacleRatio edges should not be created, the first one too
   const int first_vertex = cfg_->optim.weight_velocity_obstacle_ratio == 0 ? 1 : 0;
-  for (int i = first_vertex; i < teb_.sizePoses() - 1; ++i)
+  const int last_vertex = isGoalAdjustmentActive() ? teb_.sizePoses() : teb_.sizePoses() - 1;
+  for (int i = first_vertex; i < last_vertex; ++i)
   {    
       double left_min_dist = std::numeric_limits<double>::max();
       double right_min_dist = std::numeric_limits<double>::max();
@@ -670,16 +672,18 @@ void TebOptimalPlanner::AddEdgesDynamicObstacles(double weight_multiplier)
     if (!(*obst)->isDynamic())
       continue;
 
-    // Skip first and last pose, as they are fixed
+    // Skip first and last pose, as they are fixed (include the last one if it is released for goal adjustment)
+    const int last_vertex = isGoalAdjustmentActive() ? teb_.sizePoses() : teb_.sizePoses() - 1;
     double time = teb_.TimeDiff(0);
-    for (int i=1; i < teb_.sizePoses() - 1; ++i)
+    for (int i=1; i < last_vertex; ++i)
     {
       EdgeDynamicObstacle* dynobst_edge = new EdgeDynamicObstacle(time);
       dynobst_edge->setVertex(0,teb_.PoseVertex(i));
       dynobst_edge->setInformation(information);
       dynobst_edge->setParameters(*cfg_, cfg_->robot_model.get(), obst->get());
       optimizer_->addEdge(dynobst_edge);
-      time += teb_.TimeDiff(i); // we do not need to check the time diff bounds, since we iterate to "< sizePoses()-1".
+      if (i < teb_.sizeTimeDiffs())
+        time += teb_.TimeDiff(i);
     }
   }
 }
@@ -1034,15 +1038,12 @@ void TebOptimalPlanner::AddEdgesVelocityObstacleRatio()
 
 void TebOptimalPlanner::AddEdgesGoalAdjustment()
 {
-  bool active = cfg_->optim.weight_adjust_goal > 0
-                && (cfg_->goal_tolerance.max_adjust_goal_x > 0 || cfg_->goal_tolerance.max_adjust_goal_y > 0);
-
   if (teb_.sizePoses() < 2)
     return;
 
   int goal_idx = teb_.sizePoses() - 1;
 
-  if (!active)
+  if (!isGoalAdjustmentActive())
   {
     teb_.setPoseVertexFixed(goal_idx, true); // keep default behavior (also restores it if the feature is disabled at runtime)
     return;

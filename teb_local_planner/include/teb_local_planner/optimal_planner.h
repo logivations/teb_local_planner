@@ -702,6 +702,19 @@ protected:
    */
   void AddEdgesGoalAdjustment();
 
+  /**
+   * @brief Check whether goal adjustment is enabled via parameters
+   *
+   * If \c true, the goal pose vertex is released during optimization and obstacle edges
+   * are also attached to the goal pose (which is otherwise skipped as a fixed vertex).
+   * @see AddEdgesGoalAdjustment
+   */
+  bool isGoalAdjustmentActive() const
+  {
+    return cfg_->optim.weight_adjust_goal > 0
+           && (cfg_->goal_tolerance.max_adjust_goal_x > 0 || cfg_->goal_tolerance.max_adjust_goal_y > 0);
+  }
+
   //@}
   
   
