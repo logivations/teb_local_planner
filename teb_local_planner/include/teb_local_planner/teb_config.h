@@ -126,6 +126,8 @@ public:
   {
     double xy_goal_tolerance; //!< Allowed final euclidean distance to the goal position
     bool free_goal_vel; //!< Allow the robot's velocity to be nonzero (usally max_vel) for planning purposes
+    double max_adjust_goal_x; //!< Maximum allowed longitudinal adjustment of the goal position (in the goal frame) during optimization [if <=0: goal is not adjusted in this direction]
+    double max_adjust_goal_y; //!< Maximum allowed lateral adjustment of the goal position (in the goal frame) during optimization [if <=0: goal is not adjusted in this direction]
   } goal_tolerance; //!< Goal tolerance related parameters
 
   //! Obstacle related parameters
@@ -178,6 +180,7 @@ public:
     double weight_dynamic_obstacle_inflation; //!< Optimization weight for the inflation penalty of dynamic obstacles (should be small)
     double weight_velocity_obstacle_ratio; //!< Optimization weight for satisfying a maximum allowed velocity with respect to the distance to a static obstacle
     double weight_viapoint; //!< Optimization weight for minimizing the distance to via-points
+    double weight_adjust_goal; //!< Optimization weight for keeping an adjustable goal close to the requested goal (only in use if max_adjust_goal_x or max_adjust_goal_y is > 0)
     double weight_prefer_rotdir; //!< Optimization weight for preferring a specific turning direction (-> currently only activated if an oscillation is detected, see 'oscillation_recovery'
 
     double weight_adapt_factor; //!< Some special weights (currently 'weight_obstacle') are repeatedly scaled by this factor in each outer TEB iteration (weight_new = weight_old*factor); Increasing weights iteratively instead of setting a huge value a-priori leads to better numerical conditions of the underlying optimization problem.
@@ -301,6 +304,8 @@ public:
 
     goal_tolerance.xy_goal_tolerance = 0.2;
     goal_tolerance.free_goal_vel = false;
+    goal_tolerance.max_adjust_goal_x = 0.0;
+    goal_tolerance.max_adjust_goal_y = 0.0;
 
     // Obstacles
 
@@ -345,6 +350,7 @@ public:
     optim.weight_dynamic_obstacle_inflation = 0.1;
     optim.weight_velocity_obstacle_ratio = 0;
     optim.weight_viapoint = 1;
+    optim.weight_adjust_goal = 1;
     optim.weight_prefer_rotdir = 50;
 
     optim.weight_adapt_factor = 2.0;

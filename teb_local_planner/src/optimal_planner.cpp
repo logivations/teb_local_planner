@@ -155,6 +155,7 @@ void TebOptimalPlanner::registerG2OTypes()
   factory->registerType("EDGE_DYNAMIC_OBSTACLE", std::make_shared<g2o::HyperGraphElementCreator<EdgeDynamicObstacle>>());
   factory->registerType("EDGE_VIA_POINT", std::make_shared<g2o::HyperGraphElementCreator<EdgeViaPoint>>());
   factory->registerType("EDGE_PREFER_ROTDIR", std::make_shared<g2o::HyperGraphElementCreator<EdgePreferRotDir>>());
+  factory->registerType("EDGE_GOAL_ADJUSTMENT", std::make_shared<g2o::HyperGraphElementCreator<EdgeGoalAdjustment>>());
   return;
 }
 
@@ -199,7 +200,12 @@ bool TebOptimalPlanner::optimizeTEB(int iterations_innerloop, int iterations_out
   //                 however, we have not tested this mode intensively yet, so we keep
   //                 the legacy fast mode as default until we finish our tests.
   bool fast_mode = !cfg_->obstacles.include_dynamic_obstacles;
-  
+
+  // store the requested goal pose before the optimizer is allowed to adjust it
+  // (the goal is restored to the requested one at every planning cycle by plan()/updateAndPruneTEB())
+  if (teb_.sizePoses() > 0)
+    goal_adjust_ref_ = teb_.BackPose();
+
   for(int i=0; i<iterations_outerloop; ++i)
   {
     if (cfg_->trajectory.teb_autosize)
@@ -365,8 +371,10 @@ bool TebOptimalPlanner::buildGraph(double weight_multiplier)
 
   if (cfg_->optim.weight_velocity_obstacle_ratio > 0)
     AddEdgesVelocityObstacleRatio();
-    
-  return true;  
+
+  AddEdgesGoalAdjustment();
+
+  return true;
 }
 
 bool TebOptimalPlanner::optimizeGraph(int no_iterations,bool clear_after)
@@ -1022,6 +1030,42 @@ void TebOptimalPlanner::AddEdgesVelocityObstacleRatio()
       optimizer_->addEdge(edge);
     }
   }
+}
+
+void TebOptimalPlanner::AddEdgesGoalAdjustment()
+{
+  bool active = cfg_->optim.weight_adjust_goal > 0
+                && (cfg_->goal_tolerance.max_adjust_goal_x > 0 || cfg_->goal_tolerance.max_adjust_goal_y > 0);
+
+  if (teb_.sizePoses() < 2)
+    return;
+
+  int goal_idx = teb_.sizePoses() - 1;
+
+  if (!active)
+  {
+    teb_.setPoseVertexFixed(goal_idx, true); // keep default behavior (also restores it if the feature is disabled at runtime)
+    return;
+  }
+
+  teb_.setPoseVertexFixed(goal_idx, false); // release the goal pose so the optimizer can adjust it
+
+  // components 0/1: attraction towards the requested goal position, weighted by weight_adjust_goal.
+  // components 2/3: adjustment bounds; component 4: goal orientation. These are approximated hard
+  // constraints, therefore they get a large constant weight (similar to weight_kinematics_nh).
+  Eigen::Matrix<double,5,5> information;
+  information.setZero();
+  information(0,0) = cfg_->optim.weight_adjust_goal;
+  information(1,1) = cfg_->optim.weight_adjust_goal;
+  information(2,2) = 1000;
+  information(3,3) = 1000;
+  information(4,4) = 1000;
+
+  EdgeGoalAdjustment* edge = new EdgeGoalAdjustment;
+  edge->setVertex(0, teb_.PoseVertex(goal_idx));
+  edge->setInformation(information);
+  edge->setParameters(*cfg_, &goal_adjust_ref_);
+  optimizer_->addEdge(edge);
 }
 
 bool TebOptimalPlanner::hasDiverged() const

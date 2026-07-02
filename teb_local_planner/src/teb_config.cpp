@@ -87,6 +87,8 @@ void TebConfig::declareParameters(const nav2::LifecycleNode::SharedPtr nh, const
 
   // GoalTolerance
   declare_parameter_if_not_declared(nh, name + "." + "free_goal_vel", rclcpp::ParameterValue(goal_tolerance.free_goal_vel));
+  declare_parameter_if_not_declared(nh, name + "." + "max_adjust_goal_x", rclcpp::ParameterValue(goal_tolerance.max_adjust_goal_x));
+  declare_parameter_if_not_declared(nh, name + "." + "max_adjust_goal_y", rclcpp::ParameterValue(goal_tolerance.max_adjust_goal_y));
 
   // Obstacles
   declare_parameter_if_not_declared(nh, name + "." + "min_obstacle_dist", rclcpp::ParameterValue(obstacles.min_obstacle_dist));
@@ -127,6 +129,7 @@ void TebConfig::declareParameters(const nav2::LifecycleNode::SharedPtr nh, const
   declare_parameter_if_not_declared(nh, name + "." + "weight_dynamic_obstacle", rclcpp::ParameterValue(optim.weight_dynamic_obstacle));
   declare_parameter_if_not_declared(nh, name + "." + "weight_dynamic_obstacle_inflation", rclcpp::ParameterValue(optim.weight_dynamic_obstacle_inflation));
   declare_parameter_if_not_declared(nh, name + "." + "weight_viapoint", rclcpp::ParameterValue(optim.weight_viapoint));
+  declare_parameter_if_not_declared(nh, name + "." + "weight_adjust_goal", rclcpp::ParameterValue(optim.weight_adjust_goal));
   declare_parameter_if_not_declared(nh, name + "." + "weight_prefer_rotdir", rclcpp::ParameterValue(optim.weight_prefer_rotdir));
   declare_parameter_if_not_declared(nh, name + "." + "weight_adapt_factor", rclcpp::ParameterValue(optim.weight_adapt_factor));
   declare_parameter_if_not_declared(nh, name + "." + "obstacle_cost_exponent", rclcpp::ParameterValue(optim.obstacle_cost_exponent));
@@ -221,6 +224,8 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2::LifecycleNode::SharedPtr 
   
   // GoalTolerance
   nh->get_parameter_or(name + "." + "free_goal_vel", goal_tolerance.free_goal_vel, goal_tolerance.free_goal_vel);
+  nh->get_parameter_or(name + "." + "max_adjust_goal_x", goal_tolerance.max_adjust_goal_x, goal_tolerance.max_adjust_goal_x);
+  nh->get_parameter_or(name + "." + "max_adjust_goal_y", goal_tolerance.max_adjust_goal_y, goal_tolerance.max_adjust_goal_y);
 
   // Obstacles
   nh->get_parameter_or(name + "." + "min_obstacle_dist", obstacles.min_obstacle_dist, obstacles.min_obstacle_dist);
@@ -261,6 +266,7 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2::LifecycleNode::SharedPtr 
   nh->get_parameter_or(name + "." + "weight_dynamic_obstacle", optim.weight_dynamic_obstacle, optim.weight_dynamic_obstacle);
   nh->get_parameter_or(name + "." + "weight_dynamic_obstacle_inflation", optim.weight_dynamic_obstacle_inflation, optim.weight_dynamic_obstacle_inflation);
   nh->get_parameter_or(name + "." + "weight_viapoint", optim.weight_viapoint, optim.weight_viapoint);
+  nh->get_parameter_or(name + "." + "weight_adjust_goal", optim.weight_adjust_goal, optim.weight_adjust_goal);
   nh->get_parameter_or(name + "." + "weight_prefer_rotdir", optim.weight_prefer_rotdir, optim.weight_prefer_rotdir);
   nh->get_parameter_or(name + "." + "weight_adapt_factor", optim.weight_adapt_factor, optim.weight_adapt_factor);
   nh->get_parameter_or(name + "." + "obstacle_cost_exponent", optim.obstacle_cost_exponent, optim.obstacle_cost_exponent);
@@ -504,6 +510,11 @@ rcl_interfaces::msg::SetParametersResult
         robot.wheelbase = parameter.as_double();
       }
       // GoalTolerance
+      else if (name == node_name + ".max_adjust_goal_x") {
+        goal_tolerance.max_adjust_goal_x = parameter.as_double();
+      } else if (name == node_name + ".max_adjust_goal_y") {
+        goal_tolerance.max_adjust_goal_y = parameter.as_double();
+      }
       // Obstacles
       else if (name == node_name + ".min_obstacle_dist") {
         obstacles.min_obstacle_dist = parameter.as_double();
@@ -559,6 +570,8 @@ rcl_interfaces::msg::SetParametersResult
         optim.weight_dynamic_obstacle_inflation = parameter.as_double();
       } else if (name == node_name + ".weight_viapoint") {
         optim.weight_viapoint = parameter.as_double();
+      } else if (name == node_name + ".weight_adjust_goal") {
+        optim.weight_adjust_goal = parameter.as_double();
       } else if (name == node_name + ".weight_prefer_rotdir") {
         optim.weight_prefer_rotdir = parameter.as_double();
       } else if (name == node_name + ".weight_adapt_factor") {
@@ -873,7 +886,11 @@ void TebConfig::checkParameters() const
   
   if (optim.weight_optimaltime <= 0)
       RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: parameter weight_optimaltime shoud be > 0 (even if weight_shortest_path is in use)");
-}    
+
+  // goal adjustment
+  if ((goal_tolerance.max_adjust_goal_x > 0 || goal_tolerance.max_adjust_goal_y > 0) && optim.weight_adjust_goal <= 0)
+      RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: max_adjust_goal_x/max_adjust_goal_y is > 0, but weight_adjust_goal is <= 0. Goal adjustment is disabled.");
+}
 
 void TebConfig::checkDeprecated(const nav2::LifecycleNode::SharedPtr nh, const std::string name) const
 {

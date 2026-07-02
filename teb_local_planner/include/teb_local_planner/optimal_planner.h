@@ -69,6 +69,7 @@
 #include "teb_local_planner/g2o_types/edge_dynamic_obstacle.h"
 #include "teb_local_planner/g2o_types/edge_via_point.h"
 #include "teb_local_planner/g2o_types/edge_prefer_rotdir.h"
+#include "teb_local_planner/g2o_types/edge_goal_adjustment.h"
 
 // messages
 #include <nav_msgs/msg/path.hpp>
@@ -689,7 +690,18 @@ protected:
    * @see optimizeGraph
    */
   void AddEdgesVelocityObstacleRatio();
-  
+
+  /**
+   * @brief Release the goal pose vertex and add an edge that allows the optimizer to adjust the goal position
+   *        slightly (bounded by max_adjust_goal_x/max_adjust_goal_y in the goal frame).
+   *
+   * If the feature is disabled, the goal vertex is kept fixed (default behavior).
+   * @see EdgeGoalAdjustment
+   * @see buildGraph
+   * @see optimizeGraph
+   */
+  void AddEdgesGoalAdjustment();
+
   //@}
   
   
@@ -716,6 +728,7 @@ protected:
   std::shared_ptr<g2o::SparseOptimizer> optimizer_; //!< g2o optimizer for trajectory optimization
   std::pair<bool, geometry_msgs::msg::Twist> vel_start_; //!< Store the initial velocity at the start pose
   std::pair<bool, geometry_msgs::msg::Twist> vel_goal_; //!< Store the final velocity at the goal pose
+  PoseSE2 goal_adjust_ref_; //!< Store the requested (unadjusted) goal pose as reference for the goal adjustment edge
 
   bool initialized_; //!< Keeps track about the correct initialization of this class
   bool optimized_; //!< This variable is \c true as long as the last optimization has been completed successful
