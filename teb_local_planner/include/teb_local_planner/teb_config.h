@@ -135,6 +135,10 @@ public:
     bool free_goal_vel; //!< Allow the robot's velocity to be nonzero (usally max_vel) for planning purposes
     double max_adjust_goal_x; //!< Maximum allowed longitudinal adjustment of the goal position (in the goal frame) during optimization [if <=0: goal is not adjusted in this direction]
     double max_adjust_goal_y; //!< Maximum allowed lateral adjustment of the goal position (in the goal frame) during optimization [if <=0: goal is not adjusted in this direction]
+    double goal_approach_dist; //!< Distance to the final goal [m] within which the translational speed is limited to goal_approach_vel; ahead of this zone the limit rises along a constant-deceleration braking curve based on acc_lim_x [if <=0: approach-speed shaping disabled]
+    double goal_approach_vel; //!< Translational speed limit [m/s] held throughout the last goal_approach_dist before the goal (applies to forward and backward motion)
+    double goal_approach_vel_theta; //!< Angular speed limit [rad/s] on arrival at the goal (e.g. for the final turn-in-place), ramped in linearly across the approach zone [if <=0: angular speed is not shaped]
+    double goal_approach_decel; //!< Deceleration [m/s^2] of the braking curve leading into the approach zone; lower values start the slow-down earlier and brake more gently (e.g. acc_lim_x/3) [if <=0: acc_lim_x is used]
   } goal_tolerance; //!< Goal tolerance related parameters
 
   //! Obstacle related parameters
@@ -324,6 +328,10 @@ public:
     goal_tolerance.free_goal_vel = false;
     goal_tolerance.max_adjust_goal_x = 0.0;
     goal_tolerance.max_adjust_goal_y = 0.0;
+    goal_tolerance.goal_approach_dist = 0.0;
+    goal_tolerance.goal_approach_vel = 0.2;
+    goal_tolerance.goal_approach_vel_theta = 0.0;
+    goal_tolerance.goal_approach_decel = 0.0;
 
     // Obstacles
 

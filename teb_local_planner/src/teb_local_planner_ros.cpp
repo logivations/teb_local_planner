@@ -481,6 +481,39 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
     );
   }
   
+  // Approach-speed shaping: hold the translational speed limit at goal_approach_vel throughout
+  // the last goal_approach_dist before the final goal. TEB itself is time-optimal and brakes as
+  // late as acc_lim_x permits; arriving slowly leaves margin to absorb late corrections (e.g.
+  // localization jumps) without overshooting the goal. Ahead of the zone the limit rises along a
+  // constant-deceleration braking curve (acc_lim_x), so the command reaches goal_approach_vel
+  // right at the zone boundary instead of stepping down.
+  if (cfg_->goal_tolerance.goal_approach_dist > 0 && cfg_->goal_tolerance.goal_approach_vel > 0
+      && goal_idx >= static_cast<int>(global_plan_.size()) - 1) // only once the local plan reaches the final goal
+  {
+    const double dist_to_goal = (robot_goal_.position() - robot_pose_.position()).norm();
+    const double approach_vel = cfg_->goal_tolerance.goal_approach_vel;
+    const double dist_beyond_zone = std::max(0.0, dist_to_goal - cfg_->goal_tolerance.goal_approach_dist);
+    const double approach_decel = cfg_->goal_tolerance.goal_approach_decel > 0
+                                    ? cfg_->goal_tolerance.goal_approach_decel : cfg_->robot.acc_lim_x;
+    if (dist_beyond_zone == 0.0 || approach_decel > 0)
+    {
+      const double cap = std::sqrt(approach_vel * approach_vel
+                                   + 2.0 * approach_decel * dist_beyond_zone);
+      max_velocity_x = std::min(max_velocity_x, cap);
+      max_velocity_x_backwards = std::min(max_velocity_x_backwards, cap);
+    }
+
+    // Optional angular cap for the final (in-place) rotation: ramped in linearly across the
+    // approach zone so that no step occurs at the zone boundary.
+    if (cfg_->goal_tolerance.goal_approach_vel_theta > 0
+        && dist_to_goal < cfg_->goal_tolerance.goal_approach_dist)
+    {
+      const double ramp = dist_to_goal / cfg_->goal_tolerance.goal_approach_dist;
+      max_vel_theta = std::min(max_vel_theta, cfg_->goal_tolerance.goal_approach_vel_theta
+          + ramp * std::max(0.0, cfg_->robot.max_vel_theta - cfg_->goal_tolerance.goal_approach_vel_theta));
+    }
+  }
+
   // Saturate velocity, if the optimization results violates the constraints (could be possible due to soft constraints).
   saturateVelocity(cmd_vel.twist.linear.x, cmd_vel.twist.linear.y, cmd_vel.twist.angular.z, max_velocity_x, cfg_->robot.max_vel_y,
                    max_vel_theta, max_velocity_x_backwards);
