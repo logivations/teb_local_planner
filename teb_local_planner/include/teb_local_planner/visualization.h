@@ -62,6 +62,7 @@
 // messages
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/pose_array.hpp>
+#include <geometry_msgs/msg/vector3_stamped.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <nav_msgs/msg/path.hpp>
 #include <std_msgs/msg/color_rgba.hpp>
@@ -215,6 +216,17 @@ public:
    */
   void publishFeedbackMessage(const TebOptimalPlanner& teb_planner, const ObstContainer& obstacles);
   void publishChi2(const double &chi2);
+
+  /**
+   * @brief Publish how far the optimizer moved the goal away from the requested goal
+   *        (only published while goal adjustment is active).
+   *
+   * The deviation is expressed in the requested goal frame:
+   * x: longitudinal offset [m], y: lateral offset [m], z: yaw offset [rad].
+   * @param requested_goal goal pose requested by the plan
+   * @param adjusted_goal goal pose after optimization
+   */
+  void publishGoalAdjustment(const PoseSE2& requested_goal, const PoseSE2& adjusted_goal);
   
   nav2::CallbackReturn on_configure();
   nav2::CallbackReturn on_activate();
@@ -249,6 +261,7 @@ protected:
   rclcpp_lifecycle::LifecyclePublisher<visualization_msgs::msg::Marker>::SharedPtr teb_marker_pub_; //!< Publisher for visualization markers
   rclcpp_lifecycle::LifecyclePublisher<teb_msgs::msg::FeedbackMsg>::SharedPtr feedback_pub_; //!< Publisher for the feedback message for analysis and debug purposes
   rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::Float64>::SharedPtr chi2_pub_; //!< Publisher for the feedback message for analysis and debug purposes
+  rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr goal_adjustment_pub_; //!< Publisher for the goal adjustment offsets (goal frame: x longitudinal, y lateral, z yaw)
   
   const TebConfig* cfg_; //!< Config class that stores and manages all related parameters
   

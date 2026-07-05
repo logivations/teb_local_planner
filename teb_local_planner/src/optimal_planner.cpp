@@ -121,13 +121,16 @@ void TebOptimalPlanner::visualize()
     return;
 
   visualization_->publishLocalPlanAndPoses(teb_);
-  
+
   if (teb_.sizePoses() > 0)
     visualization_->publishRobotFootprintModel(teb_.Pose(0), *cfg_->robot_model);
-  
+
+  if (isGoalAdjustmentActive() && teb_.sizePoses() > 0)
+    visualization_->publishGoalAdjustment(goal_adjust_ref_, teb_.BackPose());
+
   if (cfg_->trajectory.publish_feedback)
     visualization_->publishFeedbackMessage(*this, *obstacles_);
- 
+
 }
 
 /*

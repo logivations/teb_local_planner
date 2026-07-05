@@ -499,6 +499,33 @@ void TebVisualization::publishChi2(const double &chi2) {
   chi2_pub_->publish(msg);
 }
 
+void TebVisualization::publishGoalAdjustment(const PoseSE2& requested_goal, const PoseSE2& adjusted_goal)
+{
+  if ( printErrorWhenNotInitialized() )
+    return;
+
+  // express the deviation in the requested goal frame (matches EdgeGoalAdjustment)
+  const Eigen::Vector2d deviation = adjusted_goal.position() - requested_goal.position();
+  const double cos_theta = std::cos(requested_goal.theta());
+  const double sin_theta = std::sin(requested_goal.theta());
+  const double dyaw = adjusted_goal.theta() - requested_goal.theta();
+
+  geometry_msgs::msg::Vector3Stamped msg;
+  msg.header.stamp = nh_->now();
+  msg.header.frame_id = "requested_goal"; // not a tf frame: offsets are relative to the requested goal pose
+  msg.vector.x = cos_theta * deviation.x() + sin_theta * deviation.y();  // longitudinal
+  msg.vector.y = -sin_theta * deviation.x() + cos_theta * deviation.y(); // lateral
+  msg.vector.z = std::atan2(std::sin(dyaw), std::cos(dyaw));             // normalized yaw offset
+  goal_adjustment_pub_->publish(msg);
+
+  if (std::abs(msg.vector.x) > 0.01 || std::abs(msg.vector.y) > 0.01 || std::abs(msg.vector.z) > 0.01)
+  {
+    RCLCPP_INFO_THROTTLE(nh_->get_logger(), *nh_->get_clock(), 1000,
+      "TEB adjusted the goal by x=%.3f m (longitudinal), y=%.3f m (lateral), yaw=%.3f rad (goal frame)",
+      msg.vector.x, msg.vector.y, msg.vector.z);
+  }
+}
+
 std_msgs::msg::ColorRGBA TebVisualization::toColorMsg(double a, double r, double g, double b)
 {
   std_msgs::msg::ColorRGBA color;
@@ -528,6 +555,7 @@ nav2::CallbackReturn TebVisualization::on_configure()
   teb_marker_pub_ = nh_->create_publisher<visualization_msgs::msg::Marker>("teb_markers", 1);
   feedback_pub_ = nh_->create_publisher<teb_msgs::msg::FeedbackMsg>("teb_feedback", 1);
   chi2_pub_ = nh_->create_publisher<std_msgs::msg::Float64>("chi2", 1);
+  goal_adjustment_pub_ = nh_->create_publisher<geometry_msgs::msg::Vector3Stamped>("goal_adjustment", 1);
 
   initialized_ = true;
   return nav2::CallbackReturn::SUCCESS;
@@ -542,6 +570,7 @@ TebVisualization::on_activate()
   teb_marker_pub_->on_activate();
   feedback_pub_->on_activate();
   chi2_pub_->on_activate();
+  goal_adjustment_pub_->on_activate();
   return nav2::CallbackReturn::SUCCESS;
 }
 
@@ -554,6 +583,7 @@ TebVisualization::on_deactivate()
   teb_marker_pub_->on_deactivate();
   feedback_pub_->on_deactivate();
   chi2_pub_->on_deactivate();
+  goal_adjustment_pub_->on_deactivate();
   return nav2::CallbackReturn::SUCCESS;
 }
 
@@ -566,6 +596,7 @@ TebVisualization::on_cleanup()
   teb_marker_pub_.reset();
   feedback_pub_.reset();
   chi2_pub_.reset();
+  goal_adjustment_pub_.reset();
 
   return nav2::CallbackReturn::SUCCESS;
 }
