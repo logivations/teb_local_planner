@@ -526,6 +526,40 @@ void TebVisualization::publishGoalAdjustment(const PoseSE2& requested_goal, cons
   }
 }
 
+void TebVisualization::publishSteeringProfile(const std::vector<double>& steering_profile, const std::vector<double>& time_from_start)
+{
+  if ( printErrorWhenNotInitialized() || steering_profile.empty() )
+    return;
+
+  const size_t n = std::min(steering_profile.size(), time_from_start.size());
+
+  std_msgs::msg::Float64MultiArray msg;
+  msg.layout.dim.resize(2);
+  msg.layout.dim[0].label = "segment";
+  msg.layout.dim[0].size = n;
+  msg.layout.dim[0].stride = 2 * n;
+  msg.layout.dim[1].label = "time_from_start,steering_angle";
+  msg.layout.dim[1].size = 2;
+  msg.layout.dim[1].stride = 2;
+  msg.data.reserve(2 * n);
+  for (size_t i = 0; i < n; ++i)
+  {
+    msg.data.push_back(time_from_start[i]);
+    msg.data.push_back(steering_profile[i]);
+  }
+  steering_profile_pub_->publish(msg);
+}
+
+void TebVisualization::publishOptimizationDuration(double duration)
+{
+  if ( printErrorWhenNotInitialized() )
+    return;
+
+  std_msgs::msg::Float64 msg;
+  msg.data = duration;
+  optimization_duration_pub_->publish(msg);
+}
+
 std_msgs::msg::ColorRGBA TebVisualization::toColorMsg(double a, double r, double g, double b)
 {
   std_msgs::msg::ColorRGBA color;
@@ -556,6 +590,8 @@ nav2::CallbackReturn TebVisualization::on_configure()
   feedback_pub_ = nh_->create_publisher<teb_msgs::msg::FeedbackMsg>("teb_feedback", 1);
   chi2_pub_ = nh_->create_publisher<std_msgs::msg::Float64>("chi2", 1);
   goal_adjustment_pub_ = nh_->create_publisher<geometry_msgs::msg::Vector3Stamped>("goal_adjustment", 1);
+  steering_profile_pub_ = nh_->create_publisher<std_msgs::msg::Float64MultiArray>("steering_profile", 1);
+  optimization_duration_pub_ = nh_->create_publisher<std_msgs::msg::Float64>("optimization_duration", 1);
 
   initialized_ = true;
   return nav2::CallbackReturn::SUCCESS;
@@ -571,6 +607,8 @@ TebVisualization::on_activate()
   feedback_pub_->on_activate();
   chi2_pub_->on_activate();
   goal_adjustment_pub_->on_activate();
+  steering_profile_pub_->on_activate();
+  optimization_duration_pub_->on_activate();
   return nav2::CallbackReturn::SUCCESS;
 }
 
@@ -584,6 +622,8 @@ TebVisualization::on_deactivate()
   feedback_pub_->on_deactivate();
   chi2_pub_->on_deactivate();
   goal_adjustment_pub_->on_deactivate();
+  steering_profile_pub_->on_deactivate();
+  optimization_duration_pub_->on_deactivate();
   return nav2::CallbackReturn::SUCCESS;
 }
 
@@ -597,6 +637,8 @@ TebVisualization::on_cleanup()
   feedback_pub_.reset();
   chi2_pub_.reset();
   goal_adjustment_pub_.reset();
+  steering_profile_pub_.reset();
+  optimization_duration_pub_.reset();
 
   return nav2::CallbackReturn::SUCCESS;
 }

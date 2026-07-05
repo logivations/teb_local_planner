@@ -114,8 +114,15 @@ public:
     double acc_lim_theta; //!< Maximum angular acceleration of the robot
     double min_turning_radius; //!< Minimum turning radius of a carlike robot (diff-drive robot: zero); applied to left turns when min_turning_radius_right is non-zero, otherwise to both directions
     double min_turning_radius_right; //!< Minimum turning radius for right turns (carlike robot). If 0.0 (default), min_turning_radius is used for both directions.
-    double wheelbase; //!< The distance between the drive shaft and steering axle (only required for a carlike robot with 'cmd_angle_instead_rotvel' enabled); The value might be negative for back-wheeled robots!
+    double wheelbase; //!< The distance between the drive shaft and steering axle (required for a carlike robot with 'cmd_angle_instead_rotvel' enabled and for the explicit steering state, see 'steering_state_enabled'); The value might be negative for back-wheeled robots!
     bool cmd_angle_instead_rotvel; //!< Substitute the rotational velocity in the commanded velocity message by the corresponding steering angle (check 'axles_distance')
+    bool steering_state_enabled; //!< If true, model the steering angle of a carlike/tricycle robot as an explicit optimization variable (bounded by max_steering_angle and max_steering_rate). Requires wheelbase > 0.
+    double max_steering_angle; //!< Maximum steering angle [rad] towards the left (positive steering); also used for right turns unless max_steering_angle_right is set (only in use if steering_state_enabled)
+    double max_steering_angle_right; //!< Maximum steering angle [rad] towards the right (negative steering, specify as positive value). If 0.0 (default), max_steering_angle is used for both directions.
+    double max_steering_rate; //!< Maximum angular rate of the steering wheel [rad/s] (only in use if steering_state_enabled; <=0 disables the feature)
+    std::string steering_angle_topic; //!< Topic providing the measured steering angle as sensor_msgs/JointState (empty: fall back to the steering angle implied by the last velocity command; only in use if steering_state_enabled)
+    std::string steering_joint_name; //!< Name of the steering joint within the JointState message (empty: use the first entry)
+    double measured_steering_max_age; //!< Maximum age [s] of the measured steering angle before falling back to the last commanded steering angle
     bool is_footprint_dynamic; //<! If true, updated the footprint before checking trajectory feasibility
     bool use_proportional_saturation; //<! If true, reduce all twists components (linear x and y, and angular z) proportionally if any exceed its corresponding bounds, instead of saturating each one individually
     double transform_tolerance = 0.5; //<! Tolerance when querying the TF Tree for a transformation (seconds)
@@ -181,6 +188,9 @@ public:
     double weight_velocity_obstacle_ratio; //!< Optimization weight for satisfying a maximum allowed velocity with respect to the distance to a static obstacle
     double weight_viapoint; //!< Optimization weight for minimizing the distance to via-points
     double weight_adjust_goal; //!< Optimization weight for keeping an adjustable goal close to the requested goal (only in use if max_adjust_goal_x or max_adjust_goal_y is > 0)
+    double weight_steering_consistency; //!< Optimization weight for coupling the steering-angle state to the trajectory geometry (approximated hard constraint, only in use if steering_state_enabled)
+    double weight_steering_rate; //!< Optimization weight for satisfying the maximum steering rate (only in use if steering_state_enabled)
+    double weight_steering_bound; //!< Optimization weight for keeping the steering-angle state within its bounds (approximated hard constraint, only in use if steering_state_enabled)
     double weight_prefer_rotdir; //!< Optimization weight for preferring a specific turning direction (-> currently only activated if an oscillation is detected, see 'oscillation_recovery'
 
     double weight_adapt_factor; //!< Some special weights (currently 'weight_obstacle') are repeatedly scaled by this factor in each outer TEB iteration (weight_new = weight_old*factor); Increasing weights iteratively instead of setting a huge value a-priori leads to better numerical conditions of the underlying optimization problem.
@@ -297,6 +307,13 @@ public:
     robot.min_turning_radius_right = 0;
     robot.wheelbase = 1.0;
     robot.cmd_angle_instead_rotvel = false;
+    robot.steering_state_enabled = false;
+    robot.max_steering_angle = 1.5708;
+    robot.max_steering_angle_right = 0.0;
+    robot.max_steering_rate = 1.0;
+    robot.steering_angle_topic = "";
+    robot.steering_joint_name = "steering_joint";
+    robot.measured_steering_max_age = 0.5;
     robot.is_footprint_dynamic = false;
     robot.use_proportional_saturation = false;
 
@@ -351,6 +368,9 @@ public:
     optim.weight_velocity_obstacle_ratio = 0;
     optim.weight_viapoint = 1;
     optim.weight_adjust_goal = 1;
+    optim.weight_steering_consistency = 1000;
+    optim.weight_steering_rate = 1;
+    optim.weight_steering_bound = 1000;
     optim.weight_prefer_rotdir = 50;
 
     optim.weight_adapt_factor = 2.0;

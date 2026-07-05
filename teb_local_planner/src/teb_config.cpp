@@ -83,6 +83,13 @@ void TebConfig::declareParameters(const nav2::LifecycleNode::SharedPtr nh, const
   declare_parameter_if_not_declared(nh, name + "." + "min_turning_radius_right", rclcpp::ParameterValue(robot.min_turning_radius_right));
   declare_parameter_if_not_declared(nh, name + "." + "wheelbase", rclcpp::ParameterValue(robot.wheelbase));
   declare_parameter_if_not_declared(nh, name + "." + "cmd_angle_instead_rotvel", rclcpp::ParameterValue(robot.cmd_angle_instead_rotvel));
+  declare_parameter_if_not_declared(nh, name + "." + "steering_state_enabled", rclcpp::ParameterValue(robot.steering_state_enabled));
+  declare_parameter_if_not_declared(nh, name + "." + "max_steering_angle", rclcpp::ParameterValue(robot.max_steering_angle));
+  declare_parameter_if_not_declared(nh, name + "." + "max_steering_angle_right", rclcpp::ParameterValue(robot.max_steering_angle_right));
+  declare_parameter_if_not_declared(nh, name + "." + "max_steering_rate", rclcpp::ParameterValue(robot.max_steering_rate));
+  declare_parameter_if_not_declared(nh, name + "." + "steering_angle_topic", rclcpp::ParameterValue(robot.steering_angle_topic));
+  declare_parameter_if_not_declared(nh, name + "." + "steering_joint_name", rclcpp::ParameterValue(robot.steering_joint_name));
+  declare_parameter_if_not_declared(nh, name + "." + "measured_steering_max_age", rclcpp::ParameterValue(robot.measured_steering_max_age));
   declare_parameter_if_not_declared(nh, name + "." + "is_footprint_dynamic", rclcpp::ParameterValue(robot.is_footprint_dynamic));
 
   // GoalTolerance
@@ -130,6 +137,9 @@ void TebConfig::declareParameters(const nav2::LifecycleNode::SharedPtr nh, const
   declare_parameter_if_not_declared(nh, name + "." + "weight_dynamic_obstacle_inflation", rclcpp::ParameterValue(optim.weight_dynamic_obstacle_inflation));
   declare_parameter_if_not_declared(nh, name + "." + "weight_viapoint", rclcpp::ParameterValue(optim.weight_viapoint));
   declare_parameter_if_not_declared(nh, name + "." + "weight_adjust_goal", rclcpp::ParameterValue(optim.weight_adjust_goal));
+  declare_parameter_if_not_declared(nh, name + "." + "weight_steering_consistency", rclcpp::ParameterValue(optim.weight_steering_consistency));
+  declare_parameter_if_not_declared(nh, name + "." + "weight_steering_rate", rclcpp::ParameterValue(optim.weight_steering_rate));
+  declare_parameter_if_not_declared(nh, name + "." + "weight_steering_bound", rclcpp::ParameterValue(optim.weight_steering_bound));
   declare_parameter_if_not_declared(nh, name + "." + "weight_prefer_rotdir", rclcpp::ParameterValue(optim.weight_prefer_rotdir));
   declare_parameter_if_not_declared(nh, name + "." + "weight_adapt_factor", rclcpp::ParameterValue(optim.weight_adapt_factor));
   declare_parameter_if_not_declared(nh, name + "." + "obstacle_cost_exponent", rclcpp::ParameterValue(optim.obstacle_cost_exponent));
@@ -220,6 +230,13 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2::LifecycleNode::SharedPtr 
   nh->get_parameter_or(name + "." + "min_turning_radius_right", robot.min_turning_radius_right, robot.min_turning_radius_right);
   nh->get_parameter_or(name + "." + "wheelbase", robot.wheelbase, robot.wheelbase);
   nh->get_parameter_or(name + "." + "cmd_angle_instead_rotvel", robot.cmd_angle_instead_rotvel, robot.cmd_angle_instead_rotvel);
+  nh->get_parameter_or(name + "." + "steering_state_enabled", robot.steering_state_enabled, robot.steering_state_enabled);
+  nh->get_parameter_or(name + "." + "max_steering_angle", robot.max_steering_angle, robot.max_steering_angle);
+  nh->get_parameter_or(name + "." + "max_steering_angle_right", robot.max_steering_angle_right, robot.max_steering_angle_right);
+  nh->get_parameter_or(name + "." + "max_steering_rate", robot.max_steering_rate, robot.max_steering_rate);
+  nh->get_parameter_or(name + "." + "steering_angle_topic", robot.steering_angle_topic, robot.steering_angle_topic);
+  nh->get_parameter_or(name + "." + "steering_joint_name", robot.steering_joint_name, robot.steering_joint_name);
+  nh->get_parameter_or(name + "." + "measured_steering_max_age", robot.measured_steering_max_age, robot.measured_steering_max_age);
   nh->get_parameter_or(name + "." + "is_footprint_dynamic", robot.is_footprint_dynamic, robot.is_footprint_dynamic);
   
   // GoalTolerance
@@ -267,6 +284,9 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2::LifecycleNode::SharedPtr 
   nh->get_parameter_or(name + "." + "weight_dynamic_obstacle_inflation", optim.weight_dynamic_obstacle_inflation, optim.weight_dynamic_obstacle_inflation);
   nh->get_parameter_or(name + "." + "weight_viapoint", optim.weight_viapoint, optim.weight_viapoint);
   nh->get_parameter_or(name + "." + "weight_adjust_goal", optim.weight_adjust_goal, optim.weight_adjust_goal);
+  nh->get_parameter_or(name + "." + "weight_steering_consistency", optim.weight_steering_consistency, optim.weight_steering_consistency);
+  nh->get_parameter_or(name + "." + "weight_steering_rate", optim.weight_steering_rate, optim.weight_steering_rate);
+  nh->get_parameter_or(name + "." + "weight_steering_bound", optim.weight_steering_bound, optim.weight_steering_bound);
   nh->get_parameter_or(name + "." + "weight_prefer_rotdir", optim.weight_prefer_rotdir, optim.weight_prefer_rotdir);
   nh->get_parameter_or(name + "." + "weight_adapt_factor", optim.weight_adapt_factor, optim.weight_adapt_factor);
   nh->get_parameter_or(name + "." + "obstacle_cost_exponent", optim.obstacle_cost_exponent, optim.obstacle_cost_exponent);
@@ -508,6 +528,12 @@ rcl_interfaces::msg::SetParametersResult
         robot.min_turning_radius_right = parameter.as_double();
       } else if (name == node_name + ".wheelbase") {
         robot.wheelbase = parameter.as_double();
+      } else if (name == node_name + ".max_steering_angle") {
+        robot.max_steering_angle = parameter.as_double();
+      } else if (name == node_name + ".max_steering_angle_right") {
+        robot.max_steering_angle_right = parameter.as_double();
+      } else if (name == node_name + ".max_steering_rate") {
+        robot.max_steering_rate = parameter.as_double();
       }
       // GoalTolerance
       else if (name == node_name + ".max_adjust_goal_x") {
@@ -572,6 +598,12 @@ rcl_interfaces::msg::SetParametersResult
         optim.weight_viapoint = parameter.as_double();
       } else if (name == node_name + ".weight_adjust_goal") {
         optim.weight_adjust_goal = parameter.as_double();
+      } else if (name == node_name + ".weight_steering_consistency") {
+        optim.weight_steering_consistency = parameter.as_double();
+      } else if (name == node_name + ".weight_steering_rate") {
+        optim.weight_steering_rate = parameter.as_double();
+      } else if (name == node_name + ".weight_steering_bound") {
+        optim.weight_steering_bound = parameter.as_double();
       } else if (name == node_name + ".weight_prefer_rotdir") {
         optim.weight_prefer_rotdir = parameter.as_double();
       } else if (name == node_name + ".weight_adapt_factor") {
@@ -710,6 +742,8 @@ rcl_interfaces::msg::SetParametersResult
       // Robot
       else if (name == node_name + ".cmd_angle_instead_rotvel") {
         robot.cmd_angle_instead_rotvel = parameter.as_bool();
+      } else if (name == node_name + ".steering_state_enabled") {
+        robot.steering_state_enabled = parameter.as_bool();
       } else if (name == node_name + ".is_footprint_dynamic") {
         robot.is_footprint_dynamic = parameter.as_bool();
       }
@@ -876,7 +910,22 @@ void TebConfig::checkParameters() const
   
   if (robot.cmd_angle_instead_rotvel && robot.min_turning_radius==0)
     RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: parameter cmd_angle_instead_rotvel is non-zero but min_turning_radius is set to zero: undesired behavior. You are mixing a carlike and a diffdrive robot");
-  
+
+  // explicit steering state
+  if (robot.steering_state_enabled)
+  {
+    if (robot.wheelbase <= 0)
+      RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: steering_state_enabled is true but wheelbase is <= 0. The steering state is disabled.");
+    if (robot.max_steering_rate <= 0)
+      RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: steering_state_enabled is true but max_steering_rate is <= 0. The steering state is disabled.");
+    if (optim.weight_steering_consistency <= 0)
+      RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: steering_state_enabled is true but weight_steering_consistency is <= 0. The steering state is disabled.");
+    if (robot.min_turning_radius > 0)
+      RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: steering_state_enabled is true and min_turning_radius > 0. The carlike turning-radius edges are redundant with the steering bound; consider min_turning_radius: 0.");
+    if (robot.max_steering_angle < 1.5707 && robot.min_turning_radius == 0)
+      RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: max_steering_angle < pi/2 makes turning in place infeasible for the steering model, but min_turning_radius is 0. The optimizer may produce trajectories the steering model cannot follow.");
+  }
+
   // positive weight_adapt_factor
   if (optim.weight_adapt_factor < 1.0)
       RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: parameter weight_adapt_factor shoud be >= 1.0");

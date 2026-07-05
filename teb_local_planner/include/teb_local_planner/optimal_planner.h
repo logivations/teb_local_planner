@@ -70,6 +70,7 @@
 #include "teb_local_planner/g2o_types/edge_via_point.h"
 #include "teb_local_planner/g2o_types/edge_prefer_rotdir.h"
 #include "teb_local_planner/g2o_types/edge_goal_adjustment.h"
+#include "teb_local_planner/g2o_types/vertex_steering_angle.h"
 
 // messages
 #include <nav_msgs/msg/path.hpp>
@@ -277,7 +278,17 @@ public:
    * @remarks Calling this function is not neccessary if \c free_goal_vel is set to \c false in plan()
    */
   void setVelocityGoalFree() {vel_goal_.first = false;}
-  
+
+  /**
+   * @brief Set the measured (or last commanded) steering angle of the robot at the trajectory's start.
+   *
+   * Anchors the explicit steering-angle state via EdgeSteeringRateStart, such that trajectories
+   * requiring a large wheel swing at the start are charged the corresponding time.
+   * Only in use if the steering state is active (see isSteeringStateActive()).
+   * @param phi current steering angle [rad]
+   */
+  virtual void setInitialSteeringAngle(double phi) override {steering_start_ = std::make_pair(true, phi);}
+
   //@}
   
   
@@ -347,9 +358,10 @@ public:
   /**
    * @brief Reset the planner by clearing the internal graph and trajectory.
    */
-  virtual void clearPlanner() 
+  virtual void clearPlanner()
   {
     clearGraph();
+    clearSteeringVertices();
     teb_.clearTimedElasticBand();
   }
   
@@ -362,6 +374,13 @@ public:
    * @param dir This parameter might be RotType::left (prefer left), RotType::right (prefer right) or RotType::none (prefer none)
    */
   virtual void setPreferredTurningDir(RotType dir) {prefer_rotdir_=dir;}
+
+  /**
+   * @brief Copy the current steering-angle states (one per trajectory segment).
+   * @param[out] steering_profile cleared and filled with the current steering estimates [rad]
+   * @return \c false if the steering state is inactive or the trajectory is empty
+   */
+  bool getSteeringProfile(std::vector<double>& steering_profile) const;
   
   /**
    * @brief Register the vertices and edges defined for the TEB to the g2o::Factory.
@@ -715,6 +734,46 @@ protected:
            && (cfg_->goal_tolerance.max_adjust_goal_x > 0 || cfg_->goal_tolerance.max_adjust_goal_y > 0);
   }
 
+  /**
+   * @brief Add all edges (local cost functions) for the explicit steering-angle state
+   *        (consistency with the trajectory geometry, steering rate limits and steering bounds).
+   * @see EdgeSteeringConsistency
+   * @see EdgeSteeringRate
+   * @see EdgeSteeringRateStart
+   * @see EdgeSteeringBound
+   * @see buildGraph
+   * @see optimizeGraph
+   */
+  void AddEdgesSteering();
+
+  /**
+   * @brief Check whether the explicit steering-angle state is enabled via parameters
+   * @see AddEdgesSteering
+   */
+  bool isSteeringStateActive() const
+  {
+    return cfg_->robot.steering_state_enabled
+           && cfg_->robot.wheelbase > 0
+           && cfg_->robot.max_steering_rate > 0
+           && cfg_->optim.weight_steering_consistency > 0;
+  }
+
+  /**
+   * @brief Synchronize the steering-angle vertices with the current trajectory size.
+   *
+   * If the number of vertices already matches the number of trajectory segments, the previous
+   * estimates are kept (warm start). Otherwise (after autoResize or pruning) the whole chain is
+   * re-initialized from the trajectory geometry, keeping consecutive angles on a single steering
+   * branch (see steeringFromSegment / closestSteeringBranch).
+   * @see AddTEBVertices
+   */
+  void syncSteeringVertices();
+
+  /**
+   * @brief Delete all steering-angle vertices owned by this planner.
+   */
+  void clearSteeringVertices();
+
   //@}
   
   
@@ -742,6 +801,8 @@ protected:
   std::pair<bool, geometry_msgs::msg::Twist> vel_start_; //!< Store the initial velocity at the start pose
   std::pair<bool, geometry_msgs::msg::Twist> vel_goal_; //!< Store the final velocity at the goal pose
   PoseSE2 goal_adjust_ref_; //!< Store the requested (unadjusted) goal pose as reference for the goal adjustment edge
+  std::vector<VertexSteeringAngle*> steering_vec_; //!< Steering-angle vertices (owned), one per trajectory segment (only if the steering state is active)
+  std::pair<bool, double> steering_start_ = {false, 0.0}; //!< Store the measured (or last commanded) steering angle at the start pose
 
   bool initialized_; //!< Keeps track about the correct initialization of this class
   bool optimized_; //!< This variable is \c true as long as the last optimization has been completed successful

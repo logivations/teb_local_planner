@@ -55,7 +55,9 @@
 #include <teb_local_planner/g2o_types/edge_dynamic_obstacle.h>
 #include <teb_local_planner/g2o_types/edge_via_point.h>
 #include <teb_local_planner/g2o_types/edge_prefer_rotdir.h>
+#include <teb_local_planner/g2o_types/edge_steering.h>
 
+#include <chrono>
 #include <memory>
 #include <limits>
 
@@ -77,6 +79,7 @@ TebOptimalPlanner::TebOptimalPlanner(nav2::LifecycleNode::SharedPtr node, const 
 TebOptimalPlanner::~TebOptimalPlanner()
 {
   clearGraph();
+  clearSteeringVertices();
   // free dynamically allocated memory
   //if (optimizer_) 
   //  g2o::Factory::destroy();
@@ -128,6 +131,19 @@ void TebOptimalPlanner::visualize()
   if (isGoalAdjustmentActive() && teb_.sizePoses() > 0)
     visualization_->publishGoalAdjustment(goal_adjust_ref_, teb_.BackPose());
 
+  std::vector<double> steering_profile;
+  if (getSteeringProfile(steering_profile))
+  {
+    std::vector<double> time_from_start(steering_profile.size(), 0.0);
+    double elapsed = 0.0;
+    for (int i = 0; i < teb_.sizeTimeDiffs() && i < static_cast<int>(steering_profile.size()); ++i)
+    {
+      time_from_start[i] = elapsed;
+      elapsed += teb_.TimeDiff(i);
+    }
+    visualization_->publishSteeringProfile(steering_profile, time_from_start);
+  }
+
   if (cfg_->trajectory.publish_feedback)
     visualization_->publishFeedbackMessage(*this, *obstacles_);
 
@@ -159,6 +175,11 @@ void TebOptimalPlanner::registerG2OTypes()
   factory->registerType("EDGE_VIA_POINT", std::make_shared<g2o::HyperGraphElementCreator<EdgeViaPoint>>());
   factory->registerType("EDGE_PREFER_ROTDIR", std::make_shared<g2o::HyperGraphElementCreator<EdgePreferRotDir>>());
   factory->registerType("EDGE_GOAL_ADJUSTMENT", std::make_shared<g2o::HyperGraphElementCreator<EdgeGoalAdjustment>>());
+  factory->registerType("VERTEX_STEERING_ANGLE", std::make_shared<g2o::HyperGraphElementCreator<VertexSteeringAngle>>());
+  factory->registerType("EDGE_STEERING_CONSISTENCY", std::make_shared<g2o::HyperGraphElementCreator<EdgeSteeringConsistency>>());
+  factory->registerType("EDGE_STEERING_RATE", std::make_shared<g2o::HyperGraphElementCreator<EdgeSteeringRate>>());
+  factory->registerType("EDGE_STEERING_RATE_START", std::make_shared<g2o::HyperGraphElementCreator<EdgeSteeringRateStart>>());
+  factory->registerType("EDGE_STEERING_BOUND", std::make_shared<g2o::HyperGraphElementCreator<EdgeSteeringBound>>());
   return;
 }
 
@@ -195,7 +216,9 @@ bool TebOptimalPlanner::optimizeTEB(int iterations_innerloop, int iterations_out
   
   bool success = false;
   optimized_ = false;
-  
+
+  const auto optimization_start = std::chrono::steady_clock::now();
+
   double weight_multiplier = 1.0;
 
   // TODO(roesmann): we introduced the non-fast mode with the support of dynamic obstacles
@@ -236,8 +259,14 @@ bool TebOptimalPlanner::optimizeTEB(int iterations_innerloop, int iterations_out
       computeCurrentCost(obst_cost_scale, viapoint_cost_scale, alternative_time_cost);
       
     clearGraph();
-    
+
     weight_multiplier *= cfg_->optim.weight_adapt_factor;
+  }
+
+  if (visualization_)
+  {
+    const std::chrono::duration<double> optimization_duration = std::chrono::steady_clock::now() - optimization_start;
+    visualization_->publishOptimizationDuration(optimization_duration.count());
   }
 
   return true;
@@ -342,7 +371,10 @@ bool TebOptimalPlanner::buildGraph(double weight_multiplier)
   }
 
   optimizer_->setComputeBatchStatistics(cfg_->recovery.divergence_detection_enable);
-  
+
+  // synchronize the steering-angle states with the current trajectory size (if active)
+  syncSteeringVertices();
+
   // add TEB vertices
   AddTEBVertices();
   
@@ -369,6 +401,8 @@ bool TebOptimalPlanner::buildGraph(double weight_multiplier)
     AddEdgesKinematicsDiffDrive(); // we have a differential drive robot
   else
     AddEdgesKinematicsCarlike(); // we have a carlike robot since the turning radius is bounded from below.
+
+  AddEdgesSteering();
 
   AddEdgesPreferRotDir();
 
@@ -452,6 +486,11 @@ void TebOptimalPlanner::AddTEBVertices()
     }
     iter_obstacle->clear();
     (iter_obstacle++)->reserve(obstacles_->size());
+  }
+  for (VertexSteeringAngle* steering_vertex : steering_vec_)
+  {
+    steering_vertex->setId(id_counter++);
+    optimizer_->addVertex(steering_vertex);
   }
 }
 
@@ -1070,6 +1109,120 @@ void TebOptimalPlanner::AddEdgesGoalAdjustment()
   edge->setInformation(information);
   edge->setParameters(*cfg_, &goal_adjust_ref_);
   optimizer_->addEdge(edge);
+}
+
+void TebOptimalPlanner::syncSteeringVertices()
+{
+  if (!isSteeringStateActive())
+  {
+    clearSteeringVertices(); // also cleans up if the feature is disabled at runtime
+    return;
+  }
+
+  const int num_segments = teb_.sizeTimeDiffs();
+  if (static_cast<int>(steering_vec_.size()) == num_segments)
+    return; // sizes match: keep the previous estimates (warm start)
+
+  while (static_cast<int>(steering_vec_.size()) > num_segments)
+  {
+    delete steering_vec_.back();
+    steering_vec_.pop_back();
+  }
+  while (static_cast<int>(steering_vec_.size()) < num_segments)
+    steering_vec_.push_back(new VertexSteeringAngle);
+
+  // Re-initialize the whole chain from the trajectory geometry. Each angle is mapped onto the
+  // steering branch closest to its predecessor: the +-90 deg turn-in-place ambiguity corresponds
+  // to reversing the drive-wheel direction, which cannot be distinguished from positions alone,
+  // and a chain on a single branch keeps the optimizer in a single basin of attraction.
+  double phi_prev = steering_start_.first ? steering_start_.second : 0.0;
+  for (int i = 0; i < num_segments; ++i)
+  {
+    const std::pair<bool, double> segment_steering = steeringFromSegment(teb_.Pose(i), teb_.Pose(i+1), cfg_->robot.wheelbase);
+    const double phi = segment_steering.first ? closestSteeringBranch(segment_steering.second, phi_prev) : phi_prev;
+    steering_vec_[i]->steering() = phi;
+    phi_prev = phi;
+  }
+}
+
+void TebOptimalPlanner::clearSteeringVertices()
+{
+  for (VertexSteeringAngle* steering_vertex : steering_vec_)
+    delete steering_vertex;
+  steering_vec_.clear();
+}
+
+void TebOptimalPlanner::AddEdgesSteering()
+{
+  if (!isSteeringStateActive() || steering_vec_.empty())
+    return;
+
+  const int num_segments = static_cast<int>(steering_vec_.size());
+
+  Eigen::Matrix<double,1,1> information_consistency;
+  information_consistency.fill(cfg_->optim.weight_steering_consistency);
+  Eigen::Matrix<double,1,1> information_rate;
+  information_rate.fill(cfg_->optim.weight_steering_rate);
+  Eigen::Matrix<double,1,1> information_bound;
+  information_bound.fill(cfg_->optim.weight_steering_bound);
+
+  for (int i = 0; i < num_segments; ++i)
+  {
+    EdgeSteeringConsistency* consistency_edge = new EdgeSteeringConsistency;
+    consistency_edge->setVertex(0, teb_.PoseVertex(i));
+    consistency_edge->setVertex(1, teb_.PoseVertex(i+1));
+    consistency_edge->setVertex(2, steering_vec_[i]);
+    consistency_edge->setInformation(information_consistency);
+    consistency_edge->setTebConfig(*cfg_);
+    optimizer_->addEdge(consistency_edge);
+
+    if (cfg_->optim.weight_steering_bound > 0)
+    {
+      EdgeSteeringBound* bound_edge = new EdgeSteeringBound;
+      bound_edge->setVertex(0, steering_vec_[i]);
+      bound_edge->setInformation(information_bound);
+      bound_edge->setTebConfig(*cfg_);
+      optimizer_->addEdge(bound_edge);
+    }
+  }
+
+  if (cfg_->optim.weight_steering_rate == 0)
+    return;
+
+  if (steering_start_.first)
+  {
+    EdgeSteeringRateStart* start_edge = new EdgeSteeringRateStart;
+    start_edge->setVertex(0, steering_vec_[0]);
+    start_edge->setVertex(1, teb_.TimeDiffVertex(0));
+    start_edge->setInformation(information_rate);
+    start_edge->setInitialSteeringAngle(steering_start_.second);
+    start_edge->setTebConfig(*cfg_);
+    optimizer_->addEdge(start_edge);
+  }
+
+  for (int i = 0; i < num_segments - 1; ++i)
+  {
+    EdgeSteeringRate* rate_edge = new EdgeSteeringRate;
+    rate_edge->setVertex(0, steering_vec_[i]);
+    rate_edge->setVertex(1, steering_vec_[i+1]);
+    rate_edge->setVertex(2, teb_.TimeDiffVertex(i));
+    rate_edge->setVertex(3, teb_.TimeDiffVertex(i+1));
+    rate_edge->setInformation(information_rate);
+    rate_edge->setTebConfig(*cfg_);
+    optimizer_->addEdge(rate_edge);
+  }
+}
+
+bool TebOptimalPlanner::getSteeringProfile(std::vector<double>& steering_profile) const
+{
+  steering_profile.clear();
+  if (!isSteeringStateActive() || steering_vec_.empty())
+    return false;
+
+  steering_profile.reserve(steering_vec_.size());
+  for (const VertexSteeringAngle* steering_vertex : steering_vec_)
+    steering_profile.push_back(steering_vertex->steering());
+  return true;
 }
 
 bool TebOptimalPlanner::hasDiverged() const

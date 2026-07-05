@@ -67,6 +67,7 @@
 #include <nav_msgs/msg/path.hpp>
 #include <std_msgs/msg/color_rgba.hpp>
 #include <std_msgs/msg/float64.hpp>
+#include <std_msgs/msg/float64_multi_array.hpp>
 #include <tf2/transform_datatypes.h>
 #include <visualization_msgs/msg/marker.hpp>
 
@@ -227,7 +228,23 @@ public:
    * @param adjusted_goal goal pose after optimization
    */
   void publishGoalAdjustment(const PoseSE2& requested_goal, const PoseSE2& adjusted_goal);
-  
+
+  /**
+   * @brief Publish the planned steering profile (explicit steering-angle state) for analysis/debugging.
+   *
+   * Published as a flat Float64MultiArray of [time_from_start, steering_angle] pairs, one per
+   * trajectory segment (only published while the steering state is active).
+   * @param steering_profile steering angle per trajectory segment [rad]
+   * @param time_from_start elapsed trajectory time at the start of each segment [s]
+   */
+  void publishSteeringProfile(const std::vector<double>& steering_profile, const std::vector<double>& time_from_start);
+
+  /**
+   * @brief Publish the wall-clock duration of the last trajectory optimization (all outer iterations).
+   * @param duration duration [s]
+   */
+  void publishOptimizationDuration(double duration);
+
   nav2::CallbackReturn on_configure();
   nav2::CallbackReturn on_activate();
   nav2::CallbackReturn on_deactivate();
@@ -262,6 +279,8 @@ protected:
   rclcpp_lifecycle::LifecyclePublisher<teb_msgs::msg::FeedbackMsg>::SharedPtr feedback_pub_; //!< Publisher for the feedback message for analysis and debug purposes
   rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::Float64>::SharedPtr chi2_pub_; //!< Publisher for the feedback message for analysis and debug purposes
   rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr goal_adjustment_pub_; //!< Publisher for the goal adjustment offsets (goal frame: x longitudinal, y lateral, z yaw)
+  rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::Float64MultiArray>::SharedPtr steering_profile_pub_; //!< Publisher for the planned steering profile ([time_from_start, steering_angle] pairs)
+  rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::Float64>::SharedPtr optimization_duration_pub_; //!< Publisher for the wall-clock duration of the last optimization
   
   const TebConfig* cfg_; //!< Config class that stores and manages all related parameters
   

@@ -373,6 +373,9 @@ TebOptimalPlannerPtr HomotopyClassPlanner::addAndInitNewTeb(const PoseSE2& start
   if (start_velocity)
     candidate->setVelocityStart(*start_velocity);
 
+  if (initial_steering_angle_.first)
+    candidate->setInitialSteeringAngle(initial_steering_angle_.second);
+
   EquivalenceClassPtr H = calculateEquivalenceClass(candidate->teb().poses().begin(), candidate->teb().poses().end(), getCplxFromVertexPosePtr, obstacles_,
                                                     candidate->teb().timediffs().begin(), candidate->teb().timediffs().end());
 
@@ -429,6 +432,9 @@ TebOptimalPlannerPtr HomotopyClassPlanner::addAndInitNewTeb(const std::vector<ge
   if (start_velocity)
     candidate->setVelocityStart(*start_velocity);
 
+  if (initial_steering_angle_.first)
+    candidate->setInitialSteeringAngle(initial_steering_angle_.second);
+
   if (free_goal_vel)
     candidate->setVelocityGoalFree();
 
@@ -465,7 +471,16 @@ void HomotopyClassPlanner::updateAllTEBs(const PoseSE2* start, const PoseSE2* go
     it_teb->get()->teb().updateAndPruneTEB(*start, *goal);
     if (start_velocity)
       it_teb->get()->setVelocityStart(*start_velocity);
+    if (initial_steering_angle_.first)
+      it_teb->get()->setInitialSteeringAngle(initial_steering_angle_.second);
   }
+}
+
+void HomotopyClassPlanner::setInitialSteeringAngle(double phi)
+{
+  initial_steering_angle_ = std::make_pair(true, phi);
+  for (TebOptPlannerContainer::iterator it_teb = tebs_.begin(); it_teb != tebs_.end(); ++it_teb)
+    it_teb->get()->setInitialSteeringAngle(phi);
 }
 
 

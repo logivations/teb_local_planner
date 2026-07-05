@@ -27,6 +27,7 @@ find_package(nav_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(teb_msgs REQUIRED)
@@ -96,6 +97,7 @@ set(ament_dependencies
     rclcpp
     rclcpp_action
     rclcpp_lifecycle
+    sensor_msgs
     std_msgs
     pluginlib
     teb_msgs
@@ -151,12 +153,28 @@ pluginlib_export_plugin_description_file(nav2_core teb_local_planner_plugin.xml)
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
+  find_package(fmt REQUIRED)
   #ament_add_gtest(homotopy_class_planner_test
   #    test/homotopy_class_planner_test.cpp
   #)
   #target_link_libraries(homotopy_class_planner_test
   #    teb_local_planner
   #)
+  ament_add_gtest(teb_basics_test
+      test/teb_basics.cpp
+  )
+  target_link_libraries(teb_basics_test
+      teb_local_planner
+  )
+  ament_target_dependencies(teb_basics_test ${ament_dependencies})
+  ament_add_gtest(steering_state_test
+      test/steering_state_test.cpp
+  )
+  target_link_libraries(steering_state_test
+      teb_local_planner
+      fmt::fmt
+  )
+  ament_target_dependencies(steering_state_test ${ament_dependencies})
 endif()
 
 ament_package()

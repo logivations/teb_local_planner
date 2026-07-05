@@ -375,6 +375,14 @@ public:
   virtual void setPreferredTurningDir(RotType dir);
 
   /**
+   * @brief Set the measured (or last commanded) steering angle of the robot at the trajectory's start.
+   *
+   * The value is stored and forwarded to all current and future candidate planners.
+   * @param phi current steering angle [rad]
+   */
+  virtual void setInitialSteeringAngle(double phi) override;
+
+  /**
    * @brief Calculate the equivalence class of a path
    *
    * Currently, only the H-signature (refer to HSignature) is implemented.
@@ -558,6 +566,7 @@ protected:
   TebOptimalPlannerPtr initial_plan_teb_; //!< Store pointer to the TEB related to the initial plan (use method getInitialPlanTEB() since it checks if initial_plan_teb_ is still included in tebs_.)
 
   TebOptPlannerContainer tebs_; //!< Container that stores multiple local teb planners (for alternative equivalence classes) and their corresponding costs
+  std::pair<bool, double> initial_steering_angle_ = {false, 0.0}; //!< Store the measured (or last commanded) steering angle, forwarded to all candidate planners
 
   EquivalenceClassContainer equivalence_classes_; //!< Store all known quivalence classes (e.g. h-signatures) to allow checking for duplicates after finding and adding new ones.
                                                                             //   The second parameter denotes whether to exclude the class from detour deletion or not (true: force keeping).

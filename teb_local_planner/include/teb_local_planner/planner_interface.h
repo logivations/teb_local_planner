@@ -163,7 +163,17 @@ public:
   virtual void setPreferredTurningDir(RotType dir) {
       RCLCPP_WARN(rclcpp::get_logger("teb_local_planner"),
                   "setPreferredTurningDir() not implemented for this planner.");}
-    
+
+  /**
+   * @brief Set the measured (or last commanded) steering angle of the robot at the trajectory's start.
+   *
+   * Only relevant for planners that model an explicit steering-angle state (see 'steering_state_enabled');
+   * the default implementation is a no-op.
+   * @param phi current steering angle [rad]
+   */
+  virtual void setInitialSteeringAngle(double phi) {(void)phi;}
+
+
   /**
    * @brief Visualize planner specific stuff.
    * Overwrite this method to provide an interface to perform all planner related visualizations at once.
