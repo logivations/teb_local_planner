@@ -54,6 +54,7 @@
 
 // message types
 #include <nav_msgs/msg/path.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
@@ -250,6 +251,13 @@ protected:
   void customViaPointsCB(const nav_msgs::msg::Path::ConstSharedPtr via_points_msg);
 
    /**
+    * @brief Callback for the measured steering angle (only subscribed if the explicit steering
+    *        state is enabled and 'steering_angle_topic' is set)
+    * @param joint_state_msg pointer to the message containing the steering joint position
+    */
+  void steeringAngleCB(const sensor_msgs::msg::JointState::ConstSharedPtr joint_state_msg);
+
+   /**
     * @brief Prune global plan such that already passed poses are cut off
     * 
     * The pose of the robot is transformed into the frame of the global plan by taking the most recent tf transform.
@@ -396,6 +404,12 @@ private:
   rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr via_points_sub_; //!< Subscriber for custom via-points received via a Path msg.
   bool custom_via_points_active_; //!< Keep track whether valid via-points have been received from via_points_sub_
   std::mutex via_point_mutex_; //!< Mutex that locks the via_points container (multi-threaded)
+
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr steering_angle_sub_; //!< Subscriber for the measured steering angle (explicit steering state)
+  std::mutex steering_meas_mutex_; //!< Mutex that locks the measured steering angle (multi-threaded)
+  bool measured_steering_valid_ = false; //!< Keep track whether a measured steering angle has been received
+  double measured_steering_angle_ = 0.0; //!< Most recent measured steering angle [rad]
+  rclcpp::Time measured_steering_stamp_; //!< Stamp of the most recent measured steering angle
 
   PoseSE2 robot_pose_; //!< Store current robot pose
   PoseSE2 robot_goal_; //!< Store current robot goal

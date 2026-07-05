@@ -170,6 +170,17 @@ void TebLocalPlannerROS::initialize(nav2::LifecycleNode::SharedPtr node)
                 "via_points",
                 std::bind(&TebLocalPlannerROS::customViaPointsCB, this, std::placeholders::_1),
                 rclcpp::SystemDefaultsQoS());
+
+    // setup callback for the measured steering angle (explicit steering state)
+    if (cfg_->robot.steering_state_enabled && !cfg_->robot.steering_angle_topic.empty())
+    {
+      steering_angle_sub_ = node->create_subscription<sensor_msgs::msg::JointState>(
+                  cfg_->robot.steering_angle_topic,
+                  std::bind(&TebLocalPlannerROS::steeringAngleCB, this, std::placeholders::_1),
+                  rclcpp::SystemDefaultsQoS());
+      RCLCPP_INFO(logger_, "Subscribed to '%s' (joint '%s') for the measured steering angle.",
+                  cfg_->robot.steering_angle_topic.c_str(), cfg_->robot.steering_joint_name.c_str());
+    }
     
     // initialize failure detector
     //rclcpp::Node::SharedPtr nh_move_base("~");
@@ -349,7 +360,33 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
     
   // Do not allow config changes during the following optimization step
   std::lock_guard<std::mutex> cfg_lock(cfg_->configMutex());
-    
+
+  // Anchor the explicit steering state at the measured wheel angle (fallback: last commanded steering)
+  if (cfg_->robot.steering_state_enabled)
+  {
+    bool use_measured = false;
+    double steering_angle = 0.0;
+    {
+      std::lock_guard<std::mutex> steering_lock(steering_meas_mutex_);
+      if (measured_steering_valid_ &&
+          (clock_->now() - measured_steering_stamp_).seconds() <= cfg_->robot.measured_steering_max_age)
+      {
+        steering_angle = measured_steering_angle_;
+        use_measured = true;
+      }
+    }
+    if (!use_measured)
+    {
+      // reconstruct the steering angle implied by the last velocity command (bicycle model);
+      // a pure rotation corresponds to the steering wheel at +-90 degrees
+      if (last_cmd_.linear.x == 0 && last_cmd_.angular.z != 0)
+        steering_angle = last_cmd_.angular.z > 0 ? M_PI_2 : -M_PI_2;
+      else if (last_cmd_.linear.x != 0)
+        steering_angle = std::atan(cfg_->robot.wheelbase * last_cmd_.angular.z / last_cmd_.linear.x);
+    }
+    planner_->setInitialSteeringAngle(steering_angle);
+  }
+
   // Now perform the actual planning
 //   bool success = planner_->plan(robot_pose_, robot_goal_, robot_vel_, cfg_->goal_tolerance.free_goal_vel); // straight line init
   bool success = planner_->plan(transformed_plan, &robot_vel_, cfg_->goal_tolerance.free_goal_vel);
@@ -1124,6 +1161,26 @@ void TebLocalPlannerROS::customViaPointsCB(const nav_msgs::msg::Path::ConstShare
     via_points_.emplace_back(pose.pose.position.x, pose.pose.position.y);
   }
   custom_via_points_active_ = !via_points_.empty();
+}
+
+void TebLocalPlannerROS::steeringAngleCB(const sensor_msgs::msg::JointState::ConstSharedPtr joint_state_msg)
+{
+  const std::string& joint_name = cfg_->robot.steering_joint_name;
+
+  for (size_t i = 0; i < joint_state_msg->position.size(); ++i)
+  {
+    if (!joint_name.empty() && (i >= joint_state_msg->name.size() || joint_state_msg->name[i] != joint_name))
+      continue;
+
+    std::lock_guard<std::mutex> lock(steering_meas_mutex_);
+    measured_steering_angle_ = joint_state_msg->position[i];
+    measured_steering_stamp_ = joint_state_msg->header.stamp;
+    measured_steering_valid_ = true;
+    return;
+  }
+
+  RCLCPP_WARN_ONCE(logger_, "Steering joint '%s' not found in the JointState message on '%s'."
+                   " This message is printed once.", joint_name.c_str(), cfg_->robot.steering_angle_topic.c_str());
 }
 
 void TebLocalPlannerROS::activate() {
