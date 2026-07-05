@@ -176,6 +176,14 @@ if(BUILD_TESTING)
       fmt::fmt
   )
   ament_target_dependencies(steering_state_test ${ament_dependencies})
+  ament_add_gtest(via_points_test
+      test/via_points_test.cpp
+  )
+  target_link_libraries(via_points_test
+      teb_local_planner
+      fmt::fmt
+  )
+  ament_target_dependencies(via_points_test ${ament_dependencies})
 endif()
 
 ament_package()

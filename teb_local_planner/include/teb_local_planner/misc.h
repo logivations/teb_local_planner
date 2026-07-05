@@ -45,6 +45,8 @@
 
 #include <exception>
 #include <type_traits>
+#include <utility>
+#include <vector>
 
 #include <rclcpp/logging.hpp>
 
@@ -52,8 +54,28 @@ namespace teb_local_planner
 {
 #define SMALL_NUM 0.00000001
 
-//! Symbols for left/none/right rotations      
+//! Symbols for left/none/right rotations
 enum class RotType { left, none, right };
+
+/**
+ * @brief A 2d position the trajectory should pass close by, optionally carrying the desired
+ * heading at that position (taken from the global plan, see weight_viapoint_orientation).
+ *
+ * Derives from Eigen::Vector2d so that position-only consumers keep working unchanged.
+ */
+struct ViaPoint : public Eigen::Vector2d
+{
+  ViaPoint(double x, double y) : Eigen::Vector2d(x, y) {}
+  ViaPoint(double x, double y, double theta) : Eigen::Vector2d(x, y), orientation(true, theta) {}
+  explicit ViaPoint(const Eigen::Vector2d& position) : Eigen::Vector2d(position) {}
+
+  std::pair<bool, double> orientation = {false, 0.0}; //!< Desired heading [rad] at this via-point (only in use if weight_viapoint_orientation > 0)
+
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+
+//! Typedef for a container storing via-points
+typedef std::vector<ViaPoint, Eigen::aligned_allocator<ViaPoint>> ViaPointContainer;
 
 /** 
  * @brief Check whether two variables (double) are close to each other

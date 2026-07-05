@@ -187,6 +187,7 @@ public:
     double weight_dynamic_obstacle_inflation; //!< Optimization weight for the inflation penalty of dynamic obstacles (should be small)
     double weight_velocity_obstacle_ratio; //!< Optimization weight for satisfying a maximum allowed velocity with respect to the distance to a static obstacle
     double weight_viapoint; //!< Optimization weight for minimizing the distance to via-points
+    double weight_viapoint_orientation; //!< Optimization weight for aligning the trajectory heading with the via-point heading (0: disabled). Only via-points extracted from the global plan carry a heading, so this makes the band follow the global plan's heading profile (e.g. turnarounds happen where the global planner placed them). Requires a global planner producing meaningful orientations (e.g. Smac Hybrid-A*).
     double weight_adjust_goal; //!< Optimization weight for keeping an adjustable goal close to the requested goal (only in use if max_adjust_goal_x or max_adjust_goal_y is > 0)
     double weight_steering_consistency; //!< Optimization weight for coupling the steering-angle state to the trajectory geometry (approximated hard constraint, only in use if steering_state_enabled)
     double weight_steering_rate; //!< Optimization weight for satisfying the maximum steering rate (only in use if steering_state_enabled)
@@ -367,6 +368,7 @@ public:
     optim.weight_dynamic_obstacle_inflation = 0.1;
     optim.weight_velocity_obstacle_ratio = 0;
     optim.weight_viapoint = 1;
+    optim.weight_viapoint_orientation = 0;
     optim.weight_adjust_goal = 1;
     optim.weight_steering_consistency = 1000;
     optim.weight_steering_rate = 1;

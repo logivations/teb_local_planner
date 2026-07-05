@@ -136,6 +136,7 @@ void TebConfig::declareParameters(const nav2::LifecycleNode::SharedPtr nh, const
   declare_parameter_if_not_declared(nh, name + "." + "weight_dynamic_obstacle", rclcpp::ParameterValue(optim.weight_dynamic_obstacle));
   declare_parameter_if_not_declared(nh, name + "." + "weight_dynamic_obstacle_inflation", rclcpp::ParameterValue(optim.weight_dynamic_obstacle_inflation));
   declare_parameter_if_not_declared(nh, name + "." + "weight_viapoint", rclcpp::ParameterValue(optim.weight_viapoint));
+  declare_parameter_if_not_declared(nh, name + "." + "weight_viapoint_orientation", rclcpp::ParameterValue(optim.weight_viapoint_orientation));
   declare_parameter_if_not_declared(nh, name + "." + "weight_adjust_goal", rclcpp::ParameterValue(optim.weight_adjust_goal));
   declare_parameter_if_not_declared(nh, name + "." + "weight_steering_consistency", rclcpp::ParameterValue(optim.weight_steering_consistency));
   declare_parameter_if_not_declared(nh, name + "." + "weight_steering_rate", rclcpp::ParameterValue(optim.weight_steering_rate));
@@ -283,6 +284,7 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2::LifecycleNode::SharedPtr 
   nh->get_parameter_or(name + "." + "weight_dynamic_obstacle", optim.weight_dynamic_obstacle, optim.weight_dynamic_obstacle);
   nh->get_parameter_or(name + "." + "weight_dynamic_obstacle_inflation", optim.weight_dynamic_obstacle_inflation, optim.weight_dynamic_obstacle_inflation);
   nh->get_parameter_or(name + "." + "weight_viapoint", optim.weight_viapoint, optim.weight_viapoint);
+  nh->get_parameter_or(name + "." + "weight_viapoint_orientation", optim.weight_viapoint_orientation, optim.weight_viapoint_orientation);
   nh->get_parameter_or(name + "." + "weight_adjust_goal", optim.weight_adjust_goal, optim.weight_adjust_goal);
   nh->get_parameter_or(name + "." + "weight_steering_consistency", optim.weight_steering_consistency, optim.weight_steering_consistency);
   nh->get_parameter_or(name + "." + "weight_steering_rate", optim.weight_steering_rate, optim.weight_steering_rate);
@@ -598,6 +600,8 @@ rcl_interfaces::msg::SetParametersResult
         optim.weight_dynamic_obstacle_inflation = parameter.as_double();
       } else if (name == node_name + ".weight_viapoint") {
         optim.weight_viapoint = parameter.as_double();
+      } else if (name == node_name + ".weight_viapoint_orientation") {
+        optim.weight_viapoint_orientation = parameter.as_double();
       } else if (name == node_name + ".weight_adjust_goal") {
         optim.weight_adjust_goal = parameter.as_double();
       } else if (name == node_name + ".weight_steering_consistency") {
@@ -928,6 +932,15 @@ void TebConfig::checkParameters() const
       RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: steering_state_enabled is true and min_turning_radius > 0. The carlike turning-radius edges are redundant with the steering bound; consider min_turning_radius: 0.");
     if (robot.max_steering_angle < 1.5707 && robot.min_turning_radius == 0)
       RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: max_steering_angle < pi/2 makes turning in place infeasible for the steering model, but min_turning_radius is 0. The optimizer may produce trajectories the steering model cannot follow.");
+  }
+
+  // orientation-aware via points
+  if (optim.weight_viapoint_orientation > 0)
+  {
+    if (trajectory.global_plan_viapoint_sep <= 0)
+      RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: weight_viapoint_orientation is > 0 but global_plan_viapoint_sep is <= 0: no via-points are extracted from the global plan, and only those carry a heading. The orientation term has no effect.");
+    if (trajectory.global_plan_overwrite_orientation)
+      RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: weight_viapoint_orientation is > 0 but global_plan_overwrite_orientation is true: via-point headings are taken from the global plan, whose orientations are configured as unreliable. Use a global planner with meaningful orientations (e.g. Smac) and disable global_plan_overwrite_orientation.");
   }
 
   // positive weight_adapt_factor

@@ -740,8 +740,8 @@ void TebOptimalPlanner::AddEdgesDynamicObstacles(double weight_multiplier)
 
 void TebOptimalPlanner::AddEdgesViaPoints()
 {
-  if (cfg_->optim.weight_viapoint==0 || via_points_==NULL || via_points_->empty() )
-    return; // if weight equals zero skip adding edges!
+  if ((cfg_->optim.weight_viapoint<=0 && cfg_->optim.weight_viapoint_orientation<=0) || via_points_==NULL || via_points_->empty() )
+    return; // if weights equal zero skip adding edges!
 
   int start_pose_idx = 0;
   
@@ -772,9 +772,13 @@ void TebOptimalPlanner::AddEdgesViaPoints()
         continue; // skip via points really close or behind the current robot pose
       }
     }
-    Eigen::Matrix<double,1,1> information;
-    information.fill(cfg_->optim.weight_viapoint);
-    
+    // component 0: distance to the via point; component 1: heading offset towards the via-point
+    // orientation (only charged if the via point carries one, see EdgeViaPoint::computeError)
+    Eigen::Matrix<double,2,2> information;
+    information.setZero();
+    information(0,0) = std::max(0.0, cfg_->optim.weight_viapoint);
+    information(1,1) = std::max(0.0, cfg_->optim.weight_viapoint_orientation);
+
     EdgeViaPoint* edge_viapoint = new EdgeViaPoint;
     edge_viapoint->setVertex(0,teb_.PoseVertex(index));
     edge_viapoint->setInformation(information);

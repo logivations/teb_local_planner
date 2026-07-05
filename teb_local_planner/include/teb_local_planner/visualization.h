@@ -42,6 +42,7 @@
 
 
 // teb stuff
+#include "teb_local_planner/misc.h"
 #include "teb_local_planner/teb_config.h"
 #include "teb_local_planner/timed_elastic_band.h"
 #include "teb_local_planner/robot_footprint_model.h"
@@ -145,7 +146,7 @@ public:
    * @brief Publish via-points to the ros topic \e ../../teb_markers
    * @param via_points via-point container
    */
-  void publishViaPoints(const std::vector< Eigen::Vector2d, Eigen::aligned_allocator<Eigen::Vector2d> >& via_points, const std::string& ns = "ViaPoints") const;
+  void publishViaPoints(const ViaPointContainer& via_points, const std::string& ns = "ViaPoints") const;
   
   /**
    * @brief Publish a boost::adjacency_list (boost's graph datatype) via markers.

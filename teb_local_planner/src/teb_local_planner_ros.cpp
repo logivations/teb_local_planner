@@ -700,8 +700,10 @@ void TebLocalPlannerROS::updateViaPointsContainer(const std::vector<geometry_msg
     if (distance_points2d( transformed_plan[prev_idx].pose.position, transformed_plan[i].pose.position ) < min_separation)
       continue;
         
-    // add via-point
-    via_points_.push_back( Eigen::Vector2d( transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y ) );
+    // add via-point, carrying the plan's heading for the optional orientation term
+    // (see weight_viapoint_orientation)
+    via_points_.emplace_back( transformed_plan[i].pose.position.x, transformed_plan[i].pose.position.y,
+                              tf2::getYaw(transformed_plan[i].pose.orientation) );
     prev_idx = i;
   }
   
