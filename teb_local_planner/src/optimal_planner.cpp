@@ -1373,6 +1373,21 @@ bool TebOptimalPlanner::getVelocityCommand(double& vx, double& vy, double& omega
 	  
   // Get velocity from the first two configurations
   extractVelocity(teb_.Pose(0), teb_.Pose(look_ahead_poses), dt, vx, vy, omega);
+
+  // With the explicit steering state, project the command onto the planned steering angle so
+  // that (vx, omega) are kinematically consistent with a single wheel motion. This removes the
+  // sign dither of vx on (near-)turn-in-place segments (positional noise of coincident band
+  // poses flips the sign of the extracted vx, which downstream consumers would interpret as
+  // the wheel jumping between +-90 degrees). The steering chain is smooth by construction
+  // (rate edges), so the projected command is too.
+  if (isSteeringStateActive() && !steering_vec_.empty())
+  {
+    const double phi = steering_vec_.front()->steering();
+    const double wheel_vel = vx * std::cos(phi)
+                             + omega * cfg_->robot.wheelbase * std::sin(phi);
+    vx = wheel_vel * std::cos(phi);
+    omega = wheel_vel * std::sin(phi) / cfg_->robot.wheelbase;
+  }
   return true;
 }
 
