@@ -761,10 +761,11 @@ protected:
   /**
    * @brief Synchronize the steering-angle vertices with the current trajectory size.
    *
-   * If the number of vertices already matches the number of trajectory segments, the previous
-   * estimates are kept (warm start). Otherwise (after autoResize or pruning) the whole chain is
-   * re-initialized from the trajectory geometry, keeping consecutive angles on a single steering
-   * branch (see steeringFromSegment / closestSteeringBranch).
+   * If the number of vertices matches the number of trajectory segments and the trajectory has
+   * not been re-initialized or pruned since the last sync (see steering_warm_start_valid_), the
+   * previous estimates are kept (warm start across the outer optimization iterations). Otherwise
+   * the whole chain is re-initialized from the trajectory geometry, keeping consecutive angles on
+   * a single steering branch (see steeringFromSegment / closestSteeringBranch).
    * @see AddTEBVertices
    */
   void syncSteeringVertices();
@@ -803,6 +804,7 @@ protected:
   PoseSE2 goal_adjust_ref_; //!< Store the requested (unadjusted) goal pose as reference for the goal adjustment edge
   std::vector<VertexSteeringAngle*> steering_vec_; //!< Steering-angle vertices (owned), one per trajectory segment (only if the steering state is active)
   std::pair<bool, double> steering_start_ = {false, 0.0}; //!< Store the measured (or last commanded) steering angle at the start pose
+  bool steering_warm_start_valid_ = false; //!< False whenever the trajectory was re-initialized/pruned since the last sync (steering_vec_ no longer maps onto the segments)
 
   bool initialized_; //!< Keeps track about the correct initialization of this class
   bool optimized_; //!< This variable is \c true as long as the last optimization has been completed successful

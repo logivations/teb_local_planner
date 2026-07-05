@@ -171,8 +171,10 @@ void TebLocalPlannerROS::initialize(nav2::LifecycleNode::SharedPtr node)
                 std::bind(&TebLocalPlannerROS::customViaPointsCB, this, std::placeholders::_1),
                 rclcpp::SystemDefaultsQoS());
 
-    // setup callback for the measured steering angle (explicit steering state)
-    if (cfg_->robot.steering_state_enabled && !cfg_->robot.steering_angle_topic.empty())
+    // setup callback for the measured steering angle (explicit steering state).
+    // Not gated on steering_state_enabled: that flag is runtime-switchable via dynamic
+    // reconfigure, so the subscription must exist whenever a topic is configured.
+    if (!cfg_->robot.steering_angle_topic.empty())
     {
       steering_angle_sub_ = node->create_subscription<sensor_msgs::msg::JointState>(
                   cfg_->robot.steering_angle_topic,
@@ -366,24 +368,35 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
   {
     bool use_measured = false;
     double steering_angle = 0.0;
+    if (!cfg_->robot.steering_angle_topic.empty())
     {
       std::lock_guard<std::mutex> steering_lock(steering_meas_mutex_);
-      if (measured_steering_valid_ &&
-          (clock_->now() - measured_steering_stamp_).seconds() <= cfg_->robot.measured_steering_max_age)
+      if (!measured_steering_valid_)
       {
-        steering_angle = measured_steering_angle_;
-        use_measured = true;
+        RCLCPP_WARN_THROTTLE(logger_, *(clock_), 5000, "No measured steering angle received on '%s' yet."
+          " Falling back to the steering angle implied by the last velocity command.",
+          cfg_->robot.steering_angle_topic.c_str());
+      }
+      else
+      {
+        const double age = (clock_->now() - measured_steering_stamp_).seconds();
+        if (age <= cfg_->robot.measured_steering_max_age)
+        {
+          steering_angle = measured_steering_angle_;
+          use_measured = true;
+        }
+        else
+        {
+          RCLCPP_WARN_THROTTLE(logger_, *(clock_), 5000, "Measured steering angle on '%s' is %.2f s old"
+            " (measured_steering_max_age: %.2f s). Falling back to the steering angle implied by the last"
+            " velocity command. Check the publisher rate and the header.stamp time source.",
+            cfg_->robot.steering_angle_topic.c_str(), age, cfg_->robot.measured_steering_max_age);
+        }
       }
     }
-    if (!use_measured)
-    {
-      // reconstruct the steering angle implied by the last velocity command (bicycle model);
-      // a pure rotation corresponds to the steering wheel at +-90 degrees
-      if (last_cmd_.linear.x == 0 && last_cmd_.angular.z != 0)
-        steering_angle = last_cmd_.angular.z > 0 ? M_PI_2 : -M_PI_2;
-      else if (last_cmd_.linear.x != 0)
-        steering_angle = std::atan(cfg_->robot.wheelbase * last_cmd_.angular.z / last_cmd_.linear.x);
-    }
+    // The last-command estimate persists through stop commands: the wheel stays where it was parked.
+    if (!use_measured && last_cmd_steering_angle_.first)
+      steering_angle = last_cmd_steering_angle_.second;
     planner_->setInitialSteeringAngle(steering_angle);
   }
 
@@ -471,6 +484,18 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
   // Saturate velocity, if the optimization results violates the constraints (could be possible due to soft constraints).
   saturateVelocity(cmd_vel.twist.linear.x, cmd_vel.twist.linear.y, cmd_vel.twist.angular.z, max_velocity_x, cfg_->robot.max_vel_y,
                    max_vel_theta, max_velocity_x_backwards);
+
+  // Remember the wheel angle implied by this command (bicycle model, before the optional
+  // cmd_angle_instead_rotvel conversion rewrites angular.z into a steering angle): it anchors the
+  // steering state in the next cycle when no fresh measured steering angle is available. A pure
+  // stop command keeps the previous estimate, since the wheel stays where it was parked.
+  if (cfg_->robot.steering_state_enabled)
+  {
+    if (cmd_vel.twist.linear.x == 0 && cmd_vel.twist.angular.z != 0)
+      last_cmd_steering_angle_ = {true, cmd_vel.twist.angular.z > 0 ? M_PI_2 : -M_PI_2};
+    else if (cmd_vel.twist.linear.x != 0)
+      last_cmd_steering_angle_ = {true, std::atan(cfg_->robot.wheelbase * cmd_vel.twist.angular.z / cmd_vel.twist.linear.x)};
+  }
 
   // convert rot-vel to steering angle if desired (carlike robot).
   // The min_turning_radius is allowed to be slighly smaller since it is a soft-constraint
@@ -964,7 +989,10 @@ void TebLocalPlannerROS::saturateVelocity(double& vx, double& vy, double& omega,
   else if (vx < -max_vel_x_backwards)
     ratio_x = - max_vel_x_backwards / vx;
 
-  if (cfg_->robot.use_proportional_saturation)
+  // With the explicit steering state, always saturate proportionally: scaling vx and omega
+  // independently would change the implied wheel angle atan(wheelbase*omega/vx) and break the
+  // consistency with the planned steering angle established in getVelocityCommand().
+  if (cfg_->robot.use_proportional_saturation || cfg_->robot.steering_state_enabled)
   {
     double ratio = std::min(std::min(ratio_x, ratio_y), ratio_omega);
     vx *= ratio;
@@ -1172,9 +1200,20 @@ void TebLocalPlannerROS::steeringAngleCB(const sensor_msgs::msg::JointState::Con
     if (!joint_name.empty() && (i >= joint_state_msg->name.size() || joint_state_msg->name[i] != joint_name))
       continue;
 
+    if (!std::isfinite(joint_state_msg->position[i]))
+    {
+      RCLCPP_WARN_THROTTLE(logger_, *(clock_), 5000, "Ignoring non-finite measured steering angle on '%s'.",
+                           cfg_->robot.steering_angle_topic.c_str());
+      return;
+    }
+
+    rclcpp::Time stamp(joint_state_msg->header.stamp);
+    if (stamp.nanoseconds() == 0)
+      stamp = clock_->now(); // unstamped publisher: treat the measurement as fresh at receipt time
+
     std::lock_guard<std::mutex> lock(steering_meas_mutex_);
     measured_steering_angle_ = joint_state_msg->position[i];
-    measured_steering_stamp_ = joint_state_msg->header.stamp;
+    measured_steering_stamp_ = stamp;
     measured_steering_valid_ = true;
     return;
   }

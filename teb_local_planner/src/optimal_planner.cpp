@@ -310,13 +310,17 @@ bool TebOptimalPlanner::plan(const std::vector<geometry_msgs::msg::PoseStamped>&
         cfg_->trajectory.min_samples, cfg_->trajectory.allow_init_with_backwards_motion);
     }
   }
+  // the trajectory was re-initialized or pruned/shifted above, so the steering estimates no
+  // longer map onto the segments: force a re-initialization from the (converged) geometry
+  steering_warm_start_valid_ = false;
+
   if (start_vel)
     setVelocityStart(*start_vel);
   if (free_goal_vel)
     setVelocityGoalFree();
   else
     vel_goal_.first = true; // we just reactivate and use the previously set velocity (should be zero if nothing was modified)
-  
+
   // now optimize
   return optimizeTEB(cfg_->optim.no_inner_iterations, cfg_->optim.no_outer_iterations);
 }
@@ -350,13 +354,17 @@ bool TebOptimalPlanner::plan(const PoseSE2& start, const PoseSE2& goal, const ge
       teb_.initTrajectoryToGoal(start, goal, 0, cfg_->robot.max_vel_x, cfg_->trajectory.min_samples, cfg_->trajectory.allow_init_with_backwards_motion);
     }
   }
+  // the trajectory was re-initialized or pruned/shifted above, so the steering estimates no
+  // longer map onto the segments: force a re-initialization from the (converged) geometry
+  steering_warm_start_valid_ = false;
+
   if (start_vel)
     setVelocityStart(*start_vel);
   if (free_goal_vel)
     setVelocityGoalFree();
   else
     vel_goal_.first = true; // we just reactivate and use the previously set velocity (should be zero if nothing was modified)
-      
+
   // now optimize
   return optimizeTEB(cfg_->optim.no_inner_iterations, cfg_->optim.no_outer_iterations, true);
 }
@@ -1120,8 +1128,9 @@ void TebOptimalPlanner::syncSteeringVertices()
   }
 
   const int num_segments = teb_.sizeTimeDiffs();
-  if (static_cast<int>(steering_vec_.size()) == num_segments)
-    return; // sizes match: keep the previous estimates (warm start)
+  if (steering_warm_start_valid_ && static_cast<int>(steering_vec_.size()) == num_segments)
+    return; // same trajectory and sizes match: keep the previous estimates (warm start)
+  steering_warm_start_valid_ = true;
 
   while (static_cast<int>(steering_vec_.size()) > num_segments)
   {
@@ -1186,8 +1195,8 @@ void TebOptimalPlanner::AddEdgesSteering()
     }
   }
 
-  if (cfg_->optim.weight_steering_rate == 0)
-    return;
+  if (cfg_->optim.weight_steering_rate <= 0)
+    return; // a negative weight would enter the information matrix and invert the penalty
 
   if (steering_start_.first)
   {
@@ -1382,7 +1391,21 @@ bool TebOptimalPlanner::getVelocityCommand(double& vx, double& vy, double& omega
   // (rate edges), so the projected command is too.
   if (isSteeringStateActive() && !steering_vec_.empty())
   {
-    const double phi = steering_vec_.front()->steering();
+    // Use the time-weighted mean steering angle over the same look-ahead span as
+    // extractVelocity() above; projecting a multi-segment average velocity onto only the first
+    // segment's angle would mix quantities from different trajectory spans (e.g. collapsing vx
+    // at a turn-in-place-to-forward transition).
+    double phi = steering_vec_.front()->steering();
+    const int steering_poses = std::min(look_ahead_poses, static_cast<int>(steering_vec_.size()));
+    double phi_weighted = 0.0;
+    double dt_sum = 0.0;
+    for (int i = 0; i < steering_poses; ++i)
+    {
+      phi_weighted += steering_vec_[i]->steering() * teb_.TimeDiff(i);
+      dt_sum += teb_.TimeDiff(i);
+    }
+    if (dt_sum > 0)
+      phi = phi_weighted / dt_sum;
     const double wheel_vel = vx * std::cos(phi)
                              + omega * cfg_->robot.wheelbase * std::sin(phi);
     vx = wheel_vel * std::cos(phi);

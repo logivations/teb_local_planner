@@ -534,6 +534,8 @@ rcl_interfaces::msg::SetParametersResult
         robot.max_steering_angle_right = parameter.as_double();
       } else if (name == node_name + ".max_steering_rate") {
         robot.max_steering_rate = parameter.as_double();
+      } else if (name == node_name + ".measured_steering_max_age") {
+        robot.measured_steering_max_age = parameter.as_double();
       }
       // GoalTolerance
       else if (name == node_name + ".max_adjust_goal_x") {
@@ -920,6 +922,8 @@ void TebConfig::checkParameters() const
       RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: steering_state_enabled is true but max_steering_rate is <= 0. The steering state is disabled.");
     if (optim.weight_steering_consistency <= 0)
       RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: steering_state_enabled is true but weight_steering_consistency is <= 0. The steering state is disabled.");
+    if (optim.weight_steering_bound > 0 && robot.max_steering_angle <= 0)
+      RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: max_steering_angle is <= 0, which makes the steering-bound penalty interval degenerate (every steering angle is penalized). Set a positive max_steering_angle or disable the bound with weight_steering_bound: 0.");
     if (robot.min_turning_radius > 0)
       RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: steering_state_enabled is true and min_turning_radius > 0. The carlike turning-radius edges are redundant with the steering bound; consider min_turning_radius: 0.");
     if (robot.max_steering_angle < 1.5707 && robot.min_turning_radius == 0)

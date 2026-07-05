@@ -114,7 +114,7 @@ public:
     double acc_lim_theta; //!< Maximum angular acceleration of the robot
     double min_turning_radius; //!< Minimum turning radius of a carlike robot (diff-drive robot: zero); applied to left turns when min_turning_radius_right is non-zero, otherwise to both directions
     double min_turning_radius_right; //!< Minimum turning radius for right turns (carlike robot). If 0.0 (default), min_turning_radius is used for both directions.
-    double wheelbase; //!< The distance between the drive shaft and steering axle (required for a carlike robot with 'cmd_angle_instead_rotvel' enabled and for the explicit steering state, see 'steering_state_enabled'); The value might be negative for back-wheeled robots!
+    double wheelbase; //!< The distance between the drive shaft and steering axle (required for a carlike robot with 'cmd_angle_instead_rotvel' enabled and for the explicit steering state, see 'steering_state_enabled'); The value might be negative for back-wheeled robots, but only for the cmd_angle_instead_rotvel conversion: the explicit steering state requires wheelbase > 0!
     bool cmd_angle_instead_rotvel; //!< Substitute the rotational velocity in the commanded velocity message by the corresponding steering angle (check 'axles_distance')
     bool steering_state_enabled; //!< If true, model the steering angle of a carlike/tricycle robot as an explicit optimization variable (bounded by max_steering_angle and max_steering_rate). Requires wheelbase > 0.
     double max_steering_angle; //!< Maximum steering angle [rad] towards the left (positive steering); also used for right turns unless max_steering_angle_right is set (only in use if steering_state_enabled)

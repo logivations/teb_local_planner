@@ -153,6 +153,7 @@ pluginlib_export_plugin_description_file(nav2_core teb_local_planner_plugin.xml)
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
+  # linked into steering_state_test: a transitively included header inlines fmt symbols
   find_package(fmt REQUIRED)
   #ament_add_gtest(homotopy_class_planner_test
   #    test/homotopy_class_planner_test.cpp

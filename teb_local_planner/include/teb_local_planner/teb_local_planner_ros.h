@@ -410,6 +410,7 @@ private:
   bool measured_steering_valid_ = false; //!< Keep track whether a measured steering angle has been received
   double measured_steering_angle_ = 0.0; //!< Most recent measured steering angle [rad]
   rclcpp::Time measured_steering_stamp_; //!< Stamp of the most recent measured steering angle
+  std::pair<bool, double> last_cmd_steering_angle_ = {false, 0.0}; //!< Wheel angle [rad] implied by the last non-zero velocity command (kept while stopped; fallback anchor for the steering state)
 
   PoseSE2 robot_pose_; //!< Store current robot pose
   PoseSE2 robot_goal_; //!< Store current robot goal
