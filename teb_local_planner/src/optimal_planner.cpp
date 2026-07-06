@@ -1395,21 +1395,11 @@ bool TebOptimalPlanner::getVelocityCommand(double& vx, double& vy, double& omega
   // (rate edges), so the projected command is too.
   if (isSteeringStateActive() && !steering_vec_.empty())
   {
-    // Use the time-weighted mean steering angle over the same look-ahead span as
-    // extractVelocity() above; projecting a multi-segment average velocity onto only the first
-    // segment's angle would mix quantities from different trajectory spans (e.g. collapsing vx
-    // at a turn-in-place-to-forward transition).
-    double phi = steering_vec_.front()->steering();
-    const int steering_poses = std::min(look_ahead_poses, static_cast<int>(steering_vec_.size()));
-    double phi_weighted = 0.0;
-    double dt_sum = 0.0;
-    for (int i = 0; i < steering_poses; ++i)
-    {
-      phi_weighted += steering_vec_[i]->steering() * teb_.TimeDiff(i);
-      dt_sum += teb_.TimeDiff(i);
-    }
-    if (dt_sum > 0)
-      phi = phi_weighted / dt_sum;
+    // Project onto the FIRST segment's steering angle: it is the angle of the motion executed
+    // right now. Averaging phi over the look-ahead span mixes maneuver phases - across a
+    // turn-in-place-to-forward transition the mean angle matches neither phase and the projected
+    // command is wrong during every transition (this caused terminal-convergence dithering).
+    const double phi = steering_vec_.front()->steering();
     const double wheel_vel = vx * std::cos(phi)
                              + omega * cfg_->robot.wheelbase * std::sin(phi);
     vx = wheel_vel * std::cos(phi);
