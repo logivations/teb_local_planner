@@ -1119,9 +1119,7 @@ void TebOptimalPlanner::clampAdjustedGoal()
   const double dx =  cos_theta * deviation.x() + sin_theta * deviation.y(); // longitudinal
   const double dy = -sin_theta * deviation.x() + cos_theta * deviation.y(); // lateral
 
-  const double dx_clamped =
-    std::max(-cfg_->goal_tolerance.max_adjust_goal_x,
-             std::min(dx, cfg_->goal_tolerance.max_adjust_goal_x));
+  const double dx_clamped = 0.0; // only lateral adjustment exists
   const double dy_clamped =
     std::max(-cfg_->goal_tolerance.max_adjust_goal_y,
              std::min(dy, cfg_->goal_tolerance.max_adjust_goal_y));
@@ -1149,16 +1147,15 @@ void TebOptimalPlanner::AddEdgesGoalAdjustment()
 
   teb_.setPoseVertexFixed(goal_idx, false); // release the goal pose so the optimizer can adjust it
 
-  // components 0/1: attraction towards the requested goal position, weighted by weight_adjust_goal.
-  // components 2/3: adjustment bounds; component 4: goal orientation. These are approximated hard
-  // constraints, therefore they get a large constant weight (similar to weight_kinematics_nh).
-  Eigen::Matrix<double,5,5> information;
+  // component 0: longitudinal deviation, component 2: lateral bound, component 3: goal
+  // orientation — approximated hard constraints with a large constant weight (similar to
+  // weight_kinematics_nh). Component 1: lateral attraction, weighted by weight_adjust_goal.
+  Eigen::Matrix<double,4,4> information;
   information.setZero();
-  information(0,0) = cfg_->optim.weight_adjust_goal;
+  information(0,0) = 1000;
   information(1,1) = cfg_->optim.weight_adjust_goal;
   information(2,2) = 1000;
   information(3,3) = 1000;
-  information(4,4) = 1000;
 
   EdgeGoalAdjustment* edge = new EdgeGoalAdjustment;
   edge->setVertex(0, teb_.PoseVertex(goal_idx));

@@ -133,7 +133,6 @@ public:
   {
     double xy_goal_tolerance; //!< Allowed final euclidean distance to the goal position
     bool free_goal_vel; //!< Allow the robot's velocity to be nonzero (usally max_vel) for planning purposes
-    double max_adjust_goal_x; //!< Maximum allowed longitudinal adjustment of the goal position (in the goal frame) during optimization [if <=0: goal is not adjusted in this direction]
     double max_adjust_goal_y; //!< Maximum allowed lateral adjustment of the goal position (in the goal frame) during optimization [if <=0: goal is not adjusted in this direction]
     double goal_approach_dist; //!< Distance to the final goal [m] within which the translational speed is limited to goal_approach_vel; ahead of this zone the limit rises along a constant-deceleration braking curve based on acc_lim_x [if <=0: approach-speed shaping disabled]
     double goal_approach_vel; //!< Translational speed limit [m/s] held throughout the last goal_approach_dist before the goal (applies to forward and backward motion)
@@ -192,7 +191,7 @@ public:
     double weight_velocity_obstacle_ratio; //!< Optimization weight for satisfying a maximum allowed velocity with respect to the distance to a static obstacle
     double weight_viapoint; //!< Optimization weight for minimizing the distance to via-points
     double weight_viapoint_orientation; //!< Optimization weight for aligning the trajectory heading with the via-point heading (0: disabled). Only via-points extracted from the global plan carry a heading, so this makes the band follow the global plan's heading profile (e.g. turnarounds happen where the global planner placed them). Requires a global planner producing meaningful orientations (e.g. Smac Hybrid-A*).
-    double weight_adjust_goal; //!< Optimization weight for keeping an adjustable goal close to the requested goal (only in use if max_adjust_goal_x or max_adjust_goal_y is > 0)
+    double weight_adjust_goal; //!< Optimization weight for keeping an adjustable goal laterally close to the requested goal (only in use if max_adjust_goal_y is > 0)
     double weight_steering_consistency; //!< Optimization weight for coupling the steering-angle state to the trajectory geometry (approximated hard constraint, only in use if steering_state_enabled)
     double weight_steering_rate; //!< Optimization weight for satisfying the maximum steering rate (only in use if steering_state_enabled)
     double weight_steering_bound; //!< Optimization weight for keeping the steering-angle state within its bounds (approximated hard constraint, only in use if steering_state_enabled)
@@ -326,7 +325,6 @@ public:
 
     goal_tolerance.xy_goal_tolerance = 0.2;
     goal_tolerance.free_goal_vel = false;
-    goal_tolerance.max_adjust_goal_x = 0.0;
     goal_tolerance.max_adjust_goal_y = 0.0;
     goal_tolerance.goal_approach_dist = 0.0;
     goal_tolerance.goal_approach_vel = 0.2;

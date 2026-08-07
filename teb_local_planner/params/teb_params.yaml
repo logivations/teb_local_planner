@@ -35,7 +35,6 @@ controller_server:
       # GoalTolerance
 
       free_goal_vel: False
-      max_adjust_goal_x: 0.0 # allowed longitudinal goal adjustment during optimization (goal frame), <= 0 disables
       max_adjust_goal_y: 0.0 # allowed lateral goal adjustment during optimization (goal frame), <= 0 disables
           
       # Obstacles
@@ -75,7 +74,7 @@ controller_server:
       weight_dynamic_obstacle: 10.0 # not in use yet
       weight_dynamic_obstacle_inflation: 0.2
       weight_viapoint: 50.0
-      weight_adjust_goal: 1.0 # attraction of an adjustable goal towards the requested goal (see max_adjust_goal_x/y)
+      weight_adjust_goal: 1.0 # lateral attraction of an adjustable goal towards the requested goal (see max_adjust_goal_y)
       weight_adapt_factor: 2.0
 
       # Homotopy Class Planner

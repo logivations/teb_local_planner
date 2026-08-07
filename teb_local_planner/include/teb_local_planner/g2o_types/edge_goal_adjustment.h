@@ -61,19 +61,22 @@ namespace teb_local_planner
  *
  * If the requested goal cannot be approached smoothly (e.g. only a small lateral offset is left,
  * which a nonholonomic robot can only compensate by oscillating forward/backward), the goal vertex
- * can be released during optimization. This edge then keeps the optimized goal close to the
- * requested goal:
- * - components 0/1: quadratic attraction towards the requested goal position, expressed in the
- *   requested goal frame (x: longitudinal, y: lateral), weighted with 'weight_adjust_goal'.
- * - components 2/3: penalty for exceeding the allowed adjustment range
- *   [-max_adjust_goal_x, max_adjust_goal_x] resp. [-max_adjust_goal_y, max_adjust_goal_y]
- *   (approximated hard constraint, weighted with a large constant).
- * - component 4: deviation from the requested goal orientation (approximated hard constraint,
+ * can be released during optimization. Only the LATERAL component (y in the requested goal frame)
+ * is adjustable: a longitudinal residual can always be driven to zero by driving further, so
+ * giving the optimizer longitudinal freedom only trades away goal accuracy. This edge keeps the
+ * optimized goal close to the requested goal:
+ * - component 0: longitudinal deviation (approximated hard constraint, the goal must not move
+ *   along its own x axis).
+ * - component 1: quadratic lateral attraction towards the requested goal position, weighted
+ *   with 'weight_adjust_goal'.
+ * - component 2: penalty for exceeding the allowed lateral adjustment range
+ *   [-max_adjust_goal_y, max_adjust_goal_y] (approximated hard constraint).
+ * - component 3: deviation from the requested goal orientation (approximated hard constraint,
  *   the goal heading itself must not change).
  * @see TebOptimalPlanner::AddEdgesGoalAdjustment
  * @remarks Do not forget to call setTebConfig() and setGoal()
  */
-class EdgeGoalAdjustment : public BaseTebUnaryEdge<5, const PoseSE2*, VertexPose>
+class EdgeGoalAdjustment : public BaseTebUnaryEdge<4, const PoseSE2*, VertexPose>
 {
 public:
 
@@ -103,12 +106,11 @@ public:
 
     _error[0] = dx;
     _error[1] = dy;
-    _error[2] = penaltyBoundToInterval(dx, cfg_->goal_tolerance.max_adjust_goal_x, 0.0);
-    _error[3] = penaltyBoundToInterval(dy, cfg_->goal_tolerance.max_adjust_goal_y, 0.0);
-    _error[4] = dtheta;
+    _error[2] = penaltyBoundToInterval(dy, cfg_->goal_tolerance.max_adjust_goal_y, 0.0);
+    _error[3] = dtheta;
 
-    TEB_ASSERT_MSG(std::isfinite(_error[0]) && std::isfinite(_error[1]) && std::isfinite(_error[4]),
-                   "EdgeGoalAdjustment::computeError() _error[0]=%f _error[1]=%f _error[4]=%f\n", _error[0], _error[1], _error[4]);
+    TEB_ASSERT_MSG(std::isfinite(_error[0]) && std::isfinite(_error[1]) && std::isfinite(_error[3]),
+                   "EdgeGoalAdjustment::computeError() _error[0]=%f _error[1]=%f _error[3]=%f\n", _error[0], _error[1], _error[3]);
   }
 
   /**

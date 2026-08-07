@@ -711,7 +711,7 @@ protected:
 
   /**
    * @brief Release the goal pose vertex and add an edge that allows the optimizer to adjust the goal position
-   *        slightly (bounded by max_adjust_goal_x/max_adjust_goal_y in the goal frame).
+   *        slightly (laterally only, bounded by max_adjust_goal_y in the goal frame).
    *
    * If the feature is disabled, the goal vertex is kept fixed (default behavior).
    * @see EdgeGoalAdjustment
@@ -729,8 +729,7 @@ protected:
    */
   bool isGoalAdjustmentActive() const
   {
-    return cfg_->optim.weight_adjust_goal > 0
-           && (cfg_->goal_tolerance.max_adjust_goal_x > 0 || cfg_->goal_tolerance.max_adjust_goal_y > 0);
+    return cfg_->optim.weight_adjust_goal > 0 && cfg_->goal_tolerance.max_adjust_goal_y > 0;
   }
 
   /**
@@ -738,9 +737,9 @@ protected:
    *
    * The bound components of EdgeGoalAdjustment are only approximated hard constraints
    * (finite weight), so competing terms (time optimality, obstacles, steering) can push
-   * the adjusted goal beyond [max_adjust_goal_x, max_adjust_goal_y] — in particular along
-   * the longitudinal axis where max_adjust_goal_x is usually 0 and any drift directly
-   * fights the goal checker's x tolerance. Called after each outer optimizer iteration:
+   * the adjusted goal beyond the lateral bound or off the (hard-constrained) longitudinal
+   * axis, where any drift directly fights the goal checker's x tolerance. Called after
+   * each outer optimizer iteration:
    * projects the goal vertex back into the box (expressed in the requested goal frame)
    * and restores the requested goal heading, which must not change.
    */

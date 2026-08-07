@@ -94,7 +94,6 @@ void TebConfig::declareParameters(const nav2::LifecycleNode::SharedPtr nh, const
 
   // GoalTolerance
   declare_parameter_if_not_declared(nh, name + "." + "free_goal_vel", rclcpp::ParameterValue(goal_tolerance.free_goal_vel));
-  declare_parameter_if_not_declared(nh, name + "." + "max_adjust_goal_x", rclcpp::ParameterValue(goal_tolerance.max_adjust_goal_x));
   declare_parameter_if_not_declared(nh, name + "." + "max_adjust_goal_y", rclcpp::ParameterValue(goal_tolerance.max_adjust_goal_y));
   declare_parameter_if_not_declared(nh, name + "." + "goal_approach_dist", rclcpp::ParameterValue(goal_tolerance.goal_approach_dist));
   declare_parameter_if_not_declared(nh, name + "." + "goal_approach_vel", rclcpp::ParameterValue(goal_tolerance.goal_approach_vel));
@@ -246,7 +245,6 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2::LifecycleNode::SharedPtr 
   
   // GoalTolerance
   nh->get_parameter_or(name + "." + "free_goal_vel", goal_tolerance.free_goal_vel, goal_tolerance.free_goal_vel);
-  nh->get_parameter_or(name + "." + "max_adjust_goal_x", goal_tolerance.max_adjust_goal_x, goal_tolerance.max_adjust_goal_x);
   nh->get_parameter_or(name + "." + "max_adjust_goal_y", goal_tolerance.max_adjust_goal_y, goal_tolerance.max_adjust_goal_y);
   nh->get_parameter_or(name + "." + "goal_approach_dist", goal_tolerance.goal_approach_dist, goal_tolerance.goal_approach_dist);
   nh->get_parameter_or(name + "." + "goal_approach_vel", goal_tolerance.goal_approach_vel, goal_tolerance.goal_approach_vel);
@@ -548,9 +546,7 @@ rcl_interfaces::msg::SetParametersResult
         robot.measured_steering_max_age = parameter.as_double();
       }
       // GoalTolerance
-      else if (name == node_name + ".max_adjust_goal_x") {
-        goal_tolerance.max_adjust_goal_x = parameter.as_double();
-      } else if (name == node_name + ".max_adjust_goal_y") {
+      else if (name == node_name + ".max_adjust_goal_y") {
         goal_tolerance.max_adjust_goal_y = parameter.as_double();
       } else if (name == node_name + ".goal_approach_dist") {
         goal_tolerance.goal_approach_dist = parameter.as_double();
@@ -970,8 +966,8 @@ void TebConfig::checkParameters() const
       RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: parameter weight_optimaltime shoud be > 0 (even if weight_shortest_path is in use)");
 
   // goal adjustment
-  if ((goal_tolerance.max_adjust_goal_x > 0 || goal_tolerance.max_adjust_goal_y > 0) && optim.weight_adjust_goal <= 0)
-      RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: max_adjust_goal_x/max_adjust_goal_y is > 0, but weight_adjust_goal is <= 0. Goal adjustment is disabled.");
+  if (goal_tolerance.max_adjust_goal_y > 0 && optim.weight_adjust_goal <= 0)
+      RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: max_adjust_goal_y is > 0, but weight_adjust_goal is <= 0. Goal adjustment is disabled.");
 
   if (goal_tolerance.goal_approach_dist > 0 && goal_tolerance.goal_approach_vel <= 0)
       RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: goal_approach_dist is > 0 but goal_approach_vel is <= 0. Approach-speed shaping is disabled.");
