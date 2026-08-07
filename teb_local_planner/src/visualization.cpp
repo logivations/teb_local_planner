@@ -518,6 +518,36 @@ void TebVisualization::publishGoalAdjustment(const PoseSE2& requested_goal, cons
   msg.vector.z = std::atan2(std::sin(dyaw), std::cos(dyaw));             // normalized yaw offset
   goal_adjustment_pub_->publish(msg);
 
+  // spatial markers on the teb_markers topic: requested goal (red) vs the goal
+  // the optimizer is actually steering to (green). They coincide when no
+  // adjustment is active, so the marker doubles as a plain goal indicator.
+  const std::pair<const PoseSE2*, std::array<float, 3>> goal_markers[2] = {
+      {&requested_goal, {1.0f, 0.1f, 0.1f}},
+      {&adjusted_goal, {0.1f, 1.0f, 0.1f}}};
+  for (int i = 0; i < 2; ++i)
+  {
+    visualization_msgs::msg::Marker marker;
+    marker.header.frame_id = cfg_->map_frame;
+    marker.header.stamp = nh_->now();
+    marker.ns = "GoalAdjustment";
+    marker.id = i;
+    marker.type = visualization_msgs::msg::Marker::ARROW;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.lifetime = rclcpp::Duration::from_seconds(2.0);
+    marker.pose.position.x = goal_markers[i].first->x();
+    marker.pose.position.y = goal_markers[i].first->y();
+    marker.pose.orientation.z = std::sin(0.5 * goal_markers[i].first->theta());
+    marker.pose.orientation.w = std::cos(0.5 * goal_markers[i].first->theta());
+    marker.scale.x = 0.4;
+    marker.scale.y = 0.06;
+    marker.scale.z = 0.06;
+    marker.color.a = 0.9f;
+    marker.color.r = goal_markers[i].second[0];
+    marker.color.g = goal_markers[i].second[1];
+    marker.color.b = goal_markers[i].second[2];
+    teb_marker_pub_->publish(marker);
+  }
+
   if (std::abs(msg.vector.x) > 0.01 || std::abs(msg.vector.y) > 0.01 || std::abs(msg.vector.z) > 0.01)
   {
     RCLCPP_INFO_THROTTLE(nh_->get_logger(), *nh_->get_clock(), 1000,

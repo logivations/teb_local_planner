@@ -128,7 +128,9 @@ void TebOptimalPlanner::visualize()
   if (teb_.sizePoses() > 0)
     visualization_->publishRobotFootprintModel(teb_.Pose(0), *cfg_->robot_model);
 
-  if (isGoalAdjustmentActive() && teb_.sizePoses() > 0)
+  // always publish (markers double as the goal indicator); without active
+  // adjustment requested and optimized goal coincide
+  if (teb_.sizePoses() > 0)
     visualization_->publishGoalAdjustment(goal_adjust_ref_, teb_.BackPose());
 
   std::vector<double> steering_profile;
