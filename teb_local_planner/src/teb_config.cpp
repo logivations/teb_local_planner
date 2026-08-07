@@ -87,6 +87,7 @@ void TebConfig::declareParameters(const nav2::LifecycleNode::SharedPtr nh, const
   declare_parameter_if_not_declared(nh, name + "." + "max_steering_angle", rclcpp::ParameterValue(robot.max_steering_angle));
   declare_parameter_if_not_declared(nh, name + "." + "max_steering_angle_right", rclcpp::ParameterValue(robot.max_steering_angle_right));
   declare_parameter_if_not_declared(nh, name + "." + "max_steering_rate", rclcpp::ParameterValue(robot.max_steering_rate));
+  declare_parameter_if_not_declared(nh, name + "." + "steering_comfort_angle", rclcpp::ParameterValue(robot.steering_comfort_angle));
   declare_parameter_if_not_declared(nh, name + "." + "steering_angle_topic", rclcpp::ParameterValue(robot.steering_angle_topic));
   declare_parameter_if_not_declared(nh, name + "." + "steering_joint_name", rclcpp::ParameterValue(robot.steering_joint_name));
   declare_parameter_if_not_declared(nh, name + "." + "measured_steering_max_age", rclcpp::ParameterValue(robot.measured_steering_max_age));
@@ -144,6 +145,7 @@ void TebConfig::declareParameters(const nav2::LifecycleNode::SharedPtr nh, const
   declare_parameter_if_not_declared(nh, name + "." + "weight_steering_consistency", rclcpp::ParameterValue(optim.weight_steering_consistency));
   declare_parameter_if_not_declared(nh, name + "." + "weight_steering_rate", rclcpp::ParameterValue(optim.weight_steering_rate));
   declare_parameter_if_not_declared(nh, name + "." + "weight_steering_bound", rclcpp::ParameterValue(optim.weight_steering_bound));
+  declare_parameter_if_not_declared(nh, name + "." + "weight_steering_comfort", rclcpp::ParameterValue(optim.weight_steering_comfort));
   declare_parameter_if_not_declared(nh, name + "." + "weight_prefer_rotdir", rclcpp::ParameterValue(optim.weight_prefer_rotdir));
   declare_parameter_if_not_declared(nh, name + "." + "weight_adapt_factor", rclcpp::ParameterValue(optim.weight_adapt_factor));
   declare_parameter_if_not_declared(nh, name + "." + "obstacle_cost_exponent", rclcpp::ParameterValue(optim.obstacle_cost_exponent));
@@ -238,6 +240,7 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2::LifecycleNode::SharedPtr 
   nh->get_parameter_or(name + "." + "max_steering_angle", robot.max_steering_angle, robot.max_steering_angle);
   nh->get_parameter_or(name + "." + "max_steering_angle_right", robot.max_steering_angle_right, robot.max_steering_angle_right);
   nh->get_parameter_or(name + "." + "max_steering_rate", robot.max_steering_rate, robot.max_steering_rate);
+  nh->get_parameter_or(name + "." + "steering_comfort_angle", robot.steering_comfort_angle, robot.steering_comfort_angle);
   nh->get_parameter_or(name + "." + "steering_angle_topic", robot.steering_angle_topic, robot.steering_angle_topic);
   nh->get_parameter_or(name + "." + "steering_joint_name", robot.steering_joint_name, robot.steering_joint_name);
   nh->get_parameter_or(name + "." + "measured_steering_max_age", robot.measured_steering_max_age, robot.measured_steering_max_age);
@@ -295,6 +298,7 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2::LifecycleNode::SharedPtr 
   nh->get_parameter_or(name + "." + "weight_steering_consistency", optim.weight_steering_consistency, optim.weight_steering_consistency);
   nh->get_parameter_or(name + "." + "weight_steering_rate", optim.weight_steering_rate, optim.weight_steering_rate);
   nh->get_parameter_or(name + "." + "weight_steering_bound", optim.weight_steering_bound, optim.weight_steering_bound);
+  nh->get_parameter_or(name + "." + "weight_steering_comfort", optim.weight_steering_comfort, optim.weight_steering_comfort);
   nh->get_parameter_or(name + "." + "weight_prefer_rotdir", optim.weight_prefer_rotdir, optim.weight_prefer_rotdir);
   nh->get_parameter_or(name + "." + "weight_adapt_factor", optim.weight_adapt_factor, optim.weight_adapt_factor);
   nh->get_parameter_or(name + "." + "obstacle_cost_exponent", optim.obstacle_cost_exponent, optim.obstacle_cost_exponent);
@@ -542,6 +546,10 @@ rcl_interfaces::msg::SetParametersResult
         robot.max_steering_angle_right = parameter.as_double();
       } else if (name == node_name + ".max_steering_rate") {
         robot.max_steering_rate = parameter.as_double();
+      } else if (name == node_name + ".steering_comfort_angle") {
+        robot.steering_comfort_angle = parameter.as_double();
+      } else if (name == node_name + ".weight_steering_comfort") {
+        optim.weight_steering_comfort = parameter.as_double();
       } else if (name == node_name + ".measured_steering_max_age") {
         robot.measured_steering_max_age = parameter.as_double();
       }

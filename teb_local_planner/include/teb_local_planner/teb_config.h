@@ -119,6 +119,7 @@ public:
     bool steering_state_enabled; //!< If true, model the steering angle of a carlike/tricycle robot as an explicit optimization variable (bounded by max_steering_angle and max_steering_rate). Requires wheelbase > 0.
     double max_steering_angle; //!< Maximum steering angle [rad] towards the left (positive steering); also used for right turns unless max_steering_angle_right is set (only in use if steering_state_enabled)
     double max_steering_angle_right; //!< Maximum steering angle [rad] towards the right (negative steering, specify as positive value). If 0.0 (default), max_steering_angle is used for both directions.
+    double steering_comfort_angle; //!< Soft steering-angle preference [rad]: |phi| beyond this pays weight_steering_comfort, keeping headroom for corrections while max_steering_angle stays reachable (<=0 disables; only in use if steering_state_enabled)
     double max_steering_rate; //!< Maximum angular rate of the steering wheel [rad/s] (only in use if steering_state_enabled; <=0 disables the feature)
     std::string steering_angle_topic; //!< Topic providing the measured steering angle as sensor_msgs/JointState (empty: fall back to the steering angle implied by the last velocity command; only in use if steering_state_enabled)
     std::string steering_joint_name; //!< Name of the steering joint within the JointState message (empty: use the first entry)
@@ -194,6 +195,7 @@ public:
     double weight_adjust_goal; //!< Optimization weight for keeping an adjustable goal laterally close to the requested goal (only in use if max_adjust_goal_y is > 0)
     double weight_steering_consistency; //!< Optimization weight for coupling the steering-angle state to the trajectory geometry (approximated hard constraint, only in use if steering_state_enabled)
     double weight_steering_rate; //!< Optimization weight for satisfying the maximum steering rate (only in use if steering_state_enabled)
+    double weight_steering_comfort; //!< Optimization weight for the soft steering comfort bound (see steering_comfort_angle)
     double weight_steering_bound; //!< Optimization weight for keeping the steering-angle state within its bounds (approximated hard constraint, only in use if steering_state_enabled)
     double weight_prefer_rotdir; //!< Optimization weight for preferring a specific turning direction (-> currently only activated if an oscillation is detected, see 'oscillation_recovery'
 
@@ -315,6 +317,7 @@ public:
     robot.max_steering_angle = 1.5708;
     robot.max_steering_angle_right = 0.0;
     robot.max_steering_rate = 1.0;
+    robot.steering_comfort_angle = 0.0;
     robot.steering_angle_topic = "";
     robot.steering_joint_name = "steering_joint";
     robot.measured_steering_max_age = 0.5;
@@ -379,6 +382,7 @@ public:
     optim.weight_steering_consistency = 1000;
     optim.weight_steering_rate = 1;
     optim.weight_steering_bound = 1000;
+    optim.weight_steering_comfort = 1;
     optim.weight_prefer_rotdir = 50;
 
     optim.weight_adapt_factor = 2.0;

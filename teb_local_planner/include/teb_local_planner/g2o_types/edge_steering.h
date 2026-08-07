@@ -265,6 +265,47 @@ public:
 };
 
 
+/**
+ * @class EdgeSteeringComfort
+ * @brief Soft preference for keeping the steering angle below a comfort threshold.
+ *
+ * At full lock the translation authority of a tricycle vanishes (v_body = wheel_vel*cos(phi)),
+ * so position residuals become uncorrectable exactly there. This edge makes the optimizer
+ * prefer turns with steering headroom (|phi| <= steering_comfort_angle) without forbidding
+ * full lock: the hard EdgeSteeringBound at max_steering_angle stays available for tight
+ * spaces and corrections, it just has to pay weight_steering_comfort to go there.
+ * Disabled when steering_comfort_angle <= 0.
+ * @see TebOptimalPlanner::AddEdgesSteering
+ * @remarks Do not forget to call setTebConfig()
+ */
+class EdgeSteeringComfort : public BaseTebUnaryEdge<1, double, VertexSteeringAngle>
+{
+public:
+
+  /**
+   * @brief Construct edge.
+   */
+  EdgeSteeringComfort() = default;
+
+  /**
+   * @brief Actual cost function
+   */
+  void computeError()
+  {
+    TEB_ASSERT_MSG(cfg_, "You must call setTebConfig() on EdgeSteeringComfort()");
+    const VertexSteeringAngle* steering = static_cast<const VertexSteeringAngle*>(_vertices[0]);
+
+    const double comfort = cfg_->robot.steering_comfort_angle;
+    _error[0] = penaltyBoundToInterval(steering->steering(), -comfort, comfort, 0.0);
+
+    TEB_ASSERT_MSG(std::isfinite(_error[0]), "EdgeSteeringComfort::computeError() _error[0]=%f\n", _error[0]);
+  }
+
+public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+
+
 } // end namespace
 
 #endif
