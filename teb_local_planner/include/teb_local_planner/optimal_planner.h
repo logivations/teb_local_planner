@@ -734,6 +734,19 @@ protected:
   }
 
   /**
+   * @brief Hard-clamp the released goal vertex to the allowed adjustment box.
+   *
+   * The bound components of EdgeGoalAdjustment are only approximated hard constraints
+   * (finite weight), so competing terms (time optimality, obstacles, steering) can push
+   * the adjusted goal beyond [max_adjust_goal_x, max_adjust_goal_y] — in particular along
+   * the longitudinal axis where max_adjust_goal_x is usually 0 and any drift directly
+   * fights the goal checker's x tolerance. Called after each outer optimizer iteration:
+   * projects the goal vertex back into the box (expressed in the requested goal frame)
+   * and restores the requested goal heading, which must not change.
+   */
+  void clampAdjustedGoal();
+
+  /**
    * @brief Add all edges (local cost functions) for the explicit steering-angle state
    *        (consistency with the trajectory geometry, steering rate limits and steering bounds).
    * @see EdgeSteeringConsistency

@@ -254,7 +254,9 @@ bool TebOptimalPlanner::optimizeTEB(int iterations_innerloop, int iterations_out
         return false;
     }
     optimized_ = true;
-    
+
+    clampAdjustedGoal();
+
     if (compute_cost_afterwards && i==iterations_outerloop-1) // compute cost vec only in the last iteration
       computeCurrentCost(obst_cost_scale, viapoint_cost_scale, alternative_time_cost);
       
@@ -1088,6 +1090,35 @@ void TebOptimalPlanner::AddEdgesVelocityObstacleRatio()
       optimizer_->addEdge(edge);
     }
   }
+}
+
+void TebOptimalPlanner::clampAdjustedGoal()
+{
+  if (!isGoalAdjustmentActive() || teb_.sizePoses() < 2)
+    return;
+
+  PoseSE2& goal = teb_.BackPose();
+  const PoseSE2& ref = goal_adjust_ref_;
+
+  const double cos_theta = std::cos(ref.theta());
+  const double sin_theta = std::sin(ref.theta());
+  const Eigen::Vector2d deviation = goal.position() - ref.position();
+  const double dx =  cos_theta * deviation.x() + sin_theta * deviation.y(); // longitudinal
+  const double dy = -sin_theta * deviation.x() + cos_theta * deviation.y(); // lateral
+
+  const double dx_clamped =
+    std::max(-cfg_->goal_tolerance.max_adjust_goal_x,
+             std::min(dx, cfg_->goal_tolerance.max_adjust_goal_x));
+  const double dy_clamped =
+    std::max(-cfg_->goal_tolerance.max_adjust_goal_y,
+             std::min(dy, cfg_->goal_tolerance.max_adjust_goal_y));
+
+  goal.x() = ref.x() + cos_theta * dx_clamped - sin_theta * dy_clamped;
+  goal.y() = ref.y() + sin_theta * dx_clamped + cos_theta * dy_clamped;
+  goal.theta() = ref.theta(); // the goal heading must not change
+
+  TEB_ASSERT_MSG(std::isfinite(goal.x()) && std::isfinite(goal.y()),
+                 "clampAdjustedGoal() produced non-finite goal position");
 }
 
 void TebOptimalPlanner::AddEdgesGoalAdjustment()
