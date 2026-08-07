@@ -954,6 +954,11 @@ void TebOptimalPlanner::AddEdgesTimeOptimal()
   Eigen::Matrix<double,1,1> information;
   information.fill(cfg_->optim.weight_optimaltime);
 
+  // approximated hard constraint dt > 0 (see EdgeTimeDiffLowerBound); same weight class
+  // as the other approximated hard constraints
+  Eigen::Matrix<double,1,1> bound_information;
+  bound_information.fill(1000);
+
   for (int i=0; i < teb_.sizeTimeDiffs(); ++i)
   {
     EdgeTimeOptimal* timeoptimal_edge = new EdgeTimeOptimal;
@@ -961,6 +966,12 @@ void TebOptimalPlanner::AddEdgesTimeOptimal()
     timeoptimal_edge->setInformation(information);
     timeoptimal_edge->setTebConfig(*cfg_);
     optimizer_->addEdge(timeoptimal_edge);
+
+    EdgeTimeDiffLowerBound* bound_edge = new EdgeTimeDiffLowerBound;
+    bound_edge->setVertex(0,teb_.TimeDiffVertex(i));
+    bound_edge->setInformation(bound_information);
+    bound_edge->setTebConfig(*cfg_);
+    optimizer_->addEdge(bound_edge);
   }
 }
 
@@ -1406,13 +1417,19 @@ bool TebOptimalPlanner::getVelocityCommand(double& vx, double& vy, double& omega
         break;
     }
   }
-  if (dt<=0)
-  {	
-    RCLCPP_ERROR(node_->get_logger(), "TebOptimalPlanner::getVelocityCommand() - timediff<=0 is invalid!");
-    vx = 0;
-    vy = 0;
-    omega = 0;
-    return false;
+  if (dt < EdgeTimeDiffLowerBound::dt_min_)
+  {
+    // A non-positive (or near-zero) dt means the optimizer ended the cycle mid-excursion
+    // below the EdgeTimeDiffLowerBound wall (it can cross in the last inner iteration, with
+    // no iteration left to recover). The band is still geometrically sound, so instead of
+    // dropping the command and resetting the planner (which used to cause a reset/stall loop
+    // near the goal), extract the command against the bound: displacements over dt_min give
+    // creep-scale velocities on the degenerate micro segments where this occurs, and the
+    // lower-bound edge restores dt > 0 in the next planning cycle.
+    RCLCPP_DEBUG(node_->get_logger(),
+      "TebOptimalPlanner::getVelocityCommand() - clamping first-segment dt %.4f to %.2f "
+      "(optimizer ended below the timediff lower bound)", dt, EdgeTimeDiffLowerBound::dt_min_);
+    dt = EdgeTimeDiffLowerBound::dt_min_;
   }
 	  
   // Get velocity from the first two configurations

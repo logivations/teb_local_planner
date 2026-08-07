@@ -112,6 +112,74 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
+
+/**
+ * @class EdgeTimeDiffLowerBound
+ * @brief Edge keeping a TimeDiff vertex above a strictly positive lower bound.
+ *
+ * A timediff is only physically meaningful for \f$ \Delta T > 0 \f$, but the vertex itself is
+ * an unconstrained scalar and every rate-type edge (velocity, acceleration, steering rate) is
+ * odd in \f$ \Delta T \f$: at a suitable negative \f$ \Delta T \f$ the mirrored rate falls back
+ * inside its bound, so the cost landscape offers a stable, physically meaningless minimum.
+ * The explicit steering state makes this reachable in practice: on a degenerate micro segment
+ * the steering-rate edge demands a large \f$ \Delta T \f$ while time optimality pushes it to
+ * zero, and an LM step can carry the vertex across zero where it gets pinned
+ * ("getVelocityCommand() - timediff<=0 is invalid!" followed by a planner reset).
+ *
+ * This edge closes the domain with a one-sided penalty: zero cost above dt_min, linearly
+ * increasing error below. Unlike a hard clamp in VertexTimeDiff::oplusImpl it keeps the
+ * LM step quality intact (constant curvature near the bound, no silent post-step projection)
+ * and lets the surrounding geometry adapt jointly.
+ * @see TebOptimalPlanner::AddEdgesTimeOptimal
+ * @remarks Do not forget to call setTebConfig()
+ */
+class EdgeTimeDiffLowerBound : public BaseTebUnaryEdge<1, double, VertexTimeDiff>
+{
+public:
+
+  /**
+   * @brief Construct edge.
+   */
+  EdgeTimeDiffLowerBound()
+  {
+    this->setMeasurement(0.);
+  }
+
+  /**
+   * @brief Actual cost function
+   */
+  void computeError()
+  {
+    TEB_ASSERT_MSG(cfg_, "You must call setTebConfig on EdgeTimeDiffLowerBound()");
+    const VertexTimeDiff* timediff = static_cast<const VertexTimeDiff*>(_vertices[0]);
+
+    _error[0] = penaltyBoundFromBelow(timediff->dt(), dt_min_, 0.0);
+
+    TEB_ASSERT_MSG(std::isfinite(_error[0]), "EdgeTimeDiffLowerBound::computeError() _error[0]=%f\n", _error[0]);
+  }
+
+#ifdef USE_ANALYTIC_JACOBI
+  /**
+   * @brief Jacobi matrix of the cost function specified in computeError().
+   */
+  void linearizeOplus()
+  {
+    TEB_ASSERT_MSG(cfg_, "You must call setTebConfig on EdgeTimeDiffLowerBound()");
+    const VertexTimeDiff* timediff = static_cast<const VertexTimeDiff*>(_vertices[0]);
+    _jacobianOplusXi( 0 , 0 ) = penaltyBoundFromBelowDerivative(timediff->dt(), dt_min_, 0.0);
+  }
+#endif
+
+  //! Lower bound for the timediff [s]. Well below any legitimate post-autoResize dt
+  //! (>= dt_ref - dt_hysteresis), but wide enough that the optimizer feels the wall before
+  //! reaching zero: with a bound of 0.01 the marginally-negative region (dt ~ -0.015) still
+  //! cost almost nothing and shallow negative equilibria survived.
+  static constexpr double dt_min_ = 0.05;
+
+public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+
 }; // end namespace
 
 #endif /* EDGE_TIMEOPTIMAL_H_ */
