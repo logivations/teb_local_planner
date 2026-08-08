@@ -406,6 +406,7 @@ private:
   std::mutex via_point_mutex_; //!< Mutex that locks the via_points container (multi-threaded)
 
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr steering_angle_sub_; //!< Subscriber for the measured steering angle (explicit steering state)
+  rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::JointState>::SharedPtr desired_steering_pub_; //!< Publisher for the optimized steering angle of the first trajectory segment (explicit steering state)
   std::mutex steering_meas_mutex_; //!< Mutex that locks the measured steering angle (multi-threaded)
   bool measured_steering_valid_ = false; //!< Keep track whether a measured steering angle has been received
   double measured_steering_angle_ = 0.0; //!< Most recent measured steering angle [rad]

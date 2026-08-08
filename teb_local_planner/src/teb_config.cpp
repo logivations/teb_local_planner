@@ -87,19 +87,15 @@ void TebConfig::declareParameters(const nav2::LifecycleNode::SharedPtr nh, const
   declare_parameter_if_not_declared(nh, name + "." + "max_steering_angle", rclcpp::ParameterValue(robot.max_steering_angle));
   declare_parameter_if_not_declared(nh, name + "." + "max_steering_angle_right", rclcpp::ParameterValue(robot.max_steering_angle_right));
   declare_parameter_if_not_declared(nh, name + "." + "max_steering_rate", rclcpp::ParameterValue(robot.max_steering_rate));
-  declare_parameter_if_not_declared(nh, name + "." + "steering_comfort_angle", rclcpp::ParameterValue(robot.steering_comfort_angle));
   declare_parameter_if_not_declared(nh, name + "." + "steering_angle_topic", rclcpp::ParameterValue(robot.steering_angle_topic));
   declare_parameter_if_not_declared(nh, name + "." + "steering_joint_name", rclcpp::ParameterValue(robot.steering_joint_name));
   declare_parameter_if_not_declared(nh, name + "." + "measured_steering_max_age", rclcpp::ParameterValue(robot.measured_steering_max_age));
+  declare_parameter_if_not_declared(nh, name + "." + "desired_steering_angle_topic", rclcpp::ParameterValue(robot.desired_steering_angle_topic));
   declare_parameter_if_not_declared(nh, name + "." + "is_footprint_dynamic", rclcpp::ParameterValue(robot.is_footprint_dynamic));
 
   // GoalTolerance
   declare_parameter_if_not_declared(nh, name + "." + "free_goal_vel", rclcpp::ParameterValue(goal_tolerance.free_goal_vel));
   declare_parameter_if_not_declared(nh, name + "." + "max_adjust_goal_y", rclcpp::ParameterValue(goal_tolerance.max_adjust_goal_y));
-  declare_parameter_if_not_declared(nh, name + "." + "goal_approach_dist", rclcpp::ParameterValue(goal_tolerance.goal_approach_dist));
-  declare_parameter_if_not_declared(nh, name + "." + "goal_approach_vel", rclcpp::ParameterValue(goal_tolerance.goal_approach_vel));
-  declare_parameter_if_not_declared(nh, name + "." + "goal_approach_vel_theta", rclcpp::ParameterValue(goal_tolerance.goal_approach_vel_theta));
-  declare_parameter_if_not_declared(nh, name + "." + "goal_approach_decel", rclcpp::ParameterValue(goal_tolerance.goal_approach_decel));
 
   // Obstacles
   declare_parameter_if_not_declared(nh, name + "." + "min_obstacle_dist", rclcpp::ParameterValue(obstacles.min_obstacle_dist));
@@ -145,7 +141,6 @@ void TebConfig::declareParameters(const nav2::LifecycleNode::SharedPtr nh, const
   declare_parameter_if_not_declared(nh, name + "." + "weight_steering_consistency", rclcpp::ParameterValue(optim.weight_steering_consistency));
   declare_parameter_if_not_declared(nh, name + "." + "weight_steering_rate", rclcpp::ParameterValue(optim.weight_steering_rate));
   declare_parameter_if_not_declared(nh, name + "." + "weight_steering_bound", rclcpp::ParameterValue(optim.weight_steering_bound));
-  declare_parameter_if_not_declared(nh, name + "." + "weight_steering_comfort", rclcpp::ParameterValue(optim.weight_steering_comfort));
   declare_parameter_if_not_declared(nh, name + "." + "weight_prefer_rotdir", rclcpp::ParameterValue(optim.weight_prefer_rotdir));
   declare_parameter_if_not_declared(nh, name + "." + "weight_adapt_factor", rclcpp::ParameterValue(optim.weight_adapt_factor));
   declare_parameter_if_not_declared(nh, name + "." + "obstacle_cost_exponent", rclcpp::ParameterValue(optim.obstacle_cost_exponent));
@@ -240,19 +235,15 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2::LifecycleNode::SharedPtr 
   nh->get_parameter_or(name + "." + "max_steering_angle", robot.max_steering_angle, robot.max_steering_angle);
   nh->get_parameter_or(name + "." + "max_steering_angle_right", robot.max_steering_angle_right, robot.max_steering_angle_right);
   nh->get_parameter_or(name + "." + "max_steering_rate", robot.max_steering_rate, robot.max_steering_rate);
-  nh->get_parameter_or(name + "." + "steering_comfort_angle", robot.steering_comfort_angle, robot.steering_comfort_angle);
   nh->get_parameter_or(name + "." + "steering_angle_topic", robot.steering_angle_topic, robot.steering_angle_topic);
   nh->get_parameter_or(name + "." + "steering_joint_name", robot.steering_joint_name, robot.steering_joint_name);
   nh->get_parameter_or(name + "." + "measured_steering_max_age", robot.measured_steering_max_age, robot.measured_steering_max_age);
+  nh->get_parameter_or(name + "." + "desired_steering_angle_topic", robot.desired_steering_angle_topic, robot.desired_steering_angle_topic);
   nh->get_parameter_or(name + "." + "is_footprint_dynamic", robot.is_footprint_dynamic, robot.is_footprint_dynamic);
   
   // GoalTolerance
   nh->get_parameter_or(name + "." + "free_goal_vel", goal_tolerance.free_goal_vel, goal_tolerance.free_goal_vel);
   nh->get_parameter_or(name + "." + "max_adjust_goal_y", goal_tolerance.max_adjust_goal_y, goal_tolerance.max_adjust_goal_y);
-  nh->get_parameter_or(name + "." + "goal_approach_dist", goal_tolerance.goal_approach_dist, goal_tolerance.goal_approach_dist);
-  nh->get_parameter_or(name + "." + "goal_approach_vel", goal_tolerance.goal_approach_vel, goal_tolerance.goal_approach_vel);
-  nh->get_parameter_or(name + "." + "goal_approach_vel_theta", goal_tolerance.goal_approach_vel_theta, goal_tolerance.goal_approach_vel_theta);
-  nh->get_parameter_or(name + "." + "goal_approach_decel", goal_tolerance.goal_approach_decel, goal_tolerance.goal_approach_decel);
 
   // Obstacles
   nh->get_parameter_or(name + "." + "min_obstacle_dist", obstacles.min_obstacle_dist, obstacles.min_obstacle_dist);
@@ -298,7 +289,6 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2::LifecycleNode::SharedPtr 
   nh->get_parameter_or(name + "." + "weight_steering_consistency", optim.weight_steering_consistency, optim.weight_steering_consistency);
   nh->get_parameter_or(name + "." + "weight_steering_rate", optim.weight_steering_rate, optim.weight_steering_rate);
   nh->get_parameter_or(name + "." + "weight_steering_bound", optim.weight_steering_bound, optim.weight_steering_bound);
-  nh->get_parameter_or(name + "." + "weight_steering_comfort", optim.weight_steering_comfort, optim.weight_steering_comfort);
   nh->get_parameter_or(name + "." + "weight_prefer_rotdir", optim.weight_prefer_rotdir, optim.weight_prefer_rotdir);
   nh->get_parameter_or(name + "." + "weight_adapt_factor", optim.weight_adapt_factor, optim.weight_adapt_factor);
   nh->get_parameter_or(name + "." + "obstacle_cost_exponent", optim.obstacle_cost_exponent, optim.obstacle_cost_exponent);
@@ -546,24 +536,12 @@ rcl_interfaces::msg::SetParametersResult
         robot.max_steering_angle_right = parameter.as_double();
       } else if (name == node_name + ".max_steering_rate") {
         robot.max_steering_rate = parameter.as_double();
-      } else if (name == node_name + ".steering_comfort_angle") {
-        robot.steering_comfort_angle = parameter.as_double();
-      } else if (name == node_name + ".weight_steering_comfort") {
-        optim.weight_steering_comfort = parameter.as_double();
       } else if (name == node_name + ".measured_steering_max_age") {
         robot.measured_steering_max_age = parameter.as_double();
       }
       // GoalTolerance
       else if (name == node_name + ".max_adjust_goal_y") {
         goal_tolerance.max_adjust_goal_y = parameter.as_double();
-      } else if (name == node_name + ".goal_approach_dist") {
-        goal_tolerance.goal_approach_dist = parameter.as_double();
-      } else if (name == node_name + ".goal_approach_vel") {
-        goal_tolerance.goal_approach_vel = parameter.as_double();
-      } else if (name == node_name + ".goal_approach_vel_theta") {
-        goal_tolerance.goal_approach_vel_theta = parameter.as_double();
-      } else if (name == node_name + ".goal_approach_decel") {
-        goal_tolerance.goal_approach_decel = parameter.as_double();
       }
       // Obstacles
       else if (name == node_name + ".min_obstacle_dist") {
@@ -977,8 +955,6 @@ void TebConfig::checkParameters() const
   if (goal_tolerance.max_adjust_goal_y > 0 && optim.weight_adjust_goal <= 0)
       RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: max_adjust_goal_y is > 0, but weight_adjust_goal is <= 0. Goal adjustment is disabled.");
 
-  if (goal_tolerance.goal_approach_dist > 0 && goal_tolerance.goal_approach_vel <= 0)
-      RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: goal_approach_dist is > 0 but goal_approach_vel is <= 0. Approach-speed shaping is disabled.");
 }
 
 void TebConfig::checkDeprecated(const nav2::LifecycleNode::SharedPtr nh, const std::string name) const

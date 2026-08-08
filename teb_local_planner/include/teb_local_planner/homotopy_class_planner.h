@@ -210,6 +210,17 @@ public:
   TebOptimalPlannerPtr bestTeb() const {return tebs_.empty() ? TebOptimalPlannerPtr() : tebs_.size()==1 ? tebs_.front() : best_teb_;}
 
   /**
+   * @brief Get the optimized steering angle of the best trajectory's first segment.
+   * @param[out] phi desired steering angle [rad] (unchanged if unavailable)
+   * @return \c false if no best trajectory exists or its steering state is inactive
+   */
+  virtual bool getFirstSteeringAngle(double& phi) const override
+  {
+    TebOptimalPlannerPtr best = bestTeb();
+    return best ? best->getFirstSteeringAngle(phi) : false;
+  }
+
+  /**
    * @brief Check whether the planned trajectory is feasible or not.
    *
    * This method currently checks only that the trajectory, or a part of the trajectory is collision free.

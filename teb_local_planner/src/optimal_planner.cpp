@@ -1222,10 +1222,6 @@ void TebOptimalPlanner::AddEdgesSteering()
   information_rate.fill(cfg_->optim.weight_steering_rate);
   Eigen::Matrix<double,1,1> information_bound;
   information_bound.fill(cfg_->optim.weight_steering_bound);
-  Eigen::Matrix<double,1,1> information_comfort;
-  information_comfort.fill(cfg_->optim.weight_steering_comfort);
-  const bool comfort_active = cfg_->robot.steering_comfort_angle > 0
-                              && cfg_->optim.weight_steering_comfort > 0;
 
   for (int i = 0; i < num_segments; ++i)
   {
@@ -1244,15 +1240,6 @@ void TebOptimalPlanner::AddEdgesSteering()
       bound_edge->setInformation(information_bound);
       bound_edge->setTebConfig(*cfg_);
       optimizer_->addEdge(bound_edge);
-    }
-
-    if (comfort_active)
-    {
-      EdgeSteeringComfort* comfort_edge = new EdgeSteeringComfort;
-      comfort_edge->setVertex(0, steering_vec_[i]);
-      comfort_edge->setInformation(information_comfort);
-      comfort_edge->setTebConfig(*cfg_);
-      optimizer_->addEdge(comfort_edge);
     }
   }
 

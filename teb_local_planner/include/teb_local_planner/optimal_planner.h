@@ -288,6 +288,19 @@ public:
    */
   virtual void setInitialSteeringAngle(double phi) override {steering_start_ = std::make_pair(true, phi);}
 
+  /**
+   * @brief Get the optimized steering angle of the first trajectory segment.
+   * @param[out] phi desired steering angle [rad] (unchanged if unavailable)
+   * @return \c false if the steering state is inactive or the trajectory is empty
+   */
+  virtual bool getFirstSteeringAngle(double& phi) const override
+  {
+    if (!isSteeringStateActive() || steering_vec_.empty())
+      return false;
+    phi = steering_vec_.front()->steering();
+    return true;
+  }
+
   //@}
   
   

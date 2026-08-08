@@ -119,11 +119,11 @@ public:
     bool steering_state_enabled; //!< If true, model the steering angle of a carlike/tricycle robot as an explicit optimization variable (bounded by max_steering_angle and max_steering_rate). Requires wheelbase > 0.
     double max_steering_angle; //!< Maximum steering angle [rad] towards the left (positive steering); also used for right turns unless max_steering_angle_right is set (only in use if steering_state_enabled)
     double max_steering_angle_right; //!< Maximum steering angle [rad] towards the right (negative steering, specify as positive value). If 0.0 (default), max_steering_angle is used for both directions.
-    double steering_comfort_angle; //!< Soft steering-angle preference [rad]: |phi| beyond this pays weight_steering_comfort, keeping headroom for corrections while max_steering_angle stays reachable (<=0 disables; only in use if steering_state_enabled)
     double max_steering_rate; //!< Maximum angular rate of the steering wheel [rad/s] (only in use if steering_state_enabled; <=0 disables the feature)
     std::string steering_angle_topic; //!< Topic providing the measured steering angle as sensor_msgs/JointState (empty: fall back to the steering angle implied by the last velocity command; only in use if steering_state_enabled)
     std::string steering_joint_name; //!< Name of the steering joint within the JointState message (empty: use the first entry)
     double measured_steering_max_age; //!< Maximum age [s] of the measured steering angle before falling back to the last commanded steering angle
+    std::string desired_steering_angle_topic; //!< Topic on which the optimized steering angle of the first trajectory segment is published as sensor_msgs/JointState. Unlike omega/v of the velocity command this angle stays well-defined at (or near) standstill, so the drive can rotate the wheel in place. Only published while the steering state is active (empty: disabled)
     bool is_footprint_dynamic; //<! If true, updated the footprint before checking trajectory feasibility
     bool use_proportional_saturation; //<! If true, reduce all twists components (linear x and y, and angular z) proportionally if any exceed its corresponding bounds, instead of saturating each one individually
     double transform_tolerance = 0.5; //<! Tolerance when querying the TF Tree for a transformation (seconds)
@@ -135,10 +135,6 @@ public:
     double xy_goal_tolerance; //!< Allowed final euclidean distance to the goal position
     bool free_goal_vel; //!< Allow the robot's velocity to be nonzero (usally max_vel) for planning purposes
     double max_adjust_goal_y; //!< Maximum allowed lateral adjustment of the goal position (in the goal frame) during optimization [if <=0: goal is not adjusted in this direction]
-    double goal_approach_dist; //!< Distance to the final goal [m] within which the translational speed is limited to goal_approach_vel; ahead of this zone the limit rises along a constant-deceleration braking curve based on acc_lim_x [if <=0: approach-speed shaping disabled]
-    double goal_approach_vel; //!< Translational speed limit [m/s] held throughout the last goal_approach_dist before the goal (applies to forward and backward motion)
-    double goal_approach_vel_theta; //!< Angular speed limit [rad/s] on arrival at the goal (e.g. for the final turn-in-place), ramped in linearly across the approach zone [if <=0: angular speed is not shaped]
-    double goal_approach_decel; //!< Deceleration [m/s^2] of the braking curve leading into the approach zone; lower values start the slow-down earlier and brake more gently (e.g. acc_lim_x/3) [if <=0: acc_lim_x is used]
   } goal_tolerance; //!< Goal tolerance related parameters
 
   //! Obstacle related parameters
@@ -195,7 +191,6 @@ public:
     double weight_adjust_goal; //!< Optimization weight for keeping an adjustable goal laterally close to the requested goal (only in use if max_adjust_goal_y is > 0)
     double weight_steering_consistency; //!< Optimization weight for coupling the steering-angle state to the trajectory geometry (approximated hard constraint, only in use if steering_state_enabled)
     double weight_steering_rate; //!< Optimization weight for satisfying the maximum steering rate (only in use if steering_state_enabled)
-    double weight_steering_comfort; //!< Optimization weight for the soft steering comfort bound (see steering_comfort_angle)
     double weight_steering_bound; //!< Optimization weight for keeping the steering-angle state within its bounds (approximated hard constraint, only in use if steering_state_enabled)
     double weight_prefer_rotdir; //!< Optimization weight for preferring a specific turning direction (-> currently only activated if an oscillation is detected, see 'oscillation_recovery'
 
@@ -317,10 +312,10 @@ public:
     robot.max_steering_angle = 1.5708;
     robot.max_steering_angle_right = 0.0;
     robot.max_steering_rate = 1.0;
-    robot.steering_comfort_angle = 0.0;
     robot.steering_angle_topic = "";
     robot.steering_joint_name = "steering_joint";
     robot.measured_steering_max_age = 0.5;
+    robot.desired_steering_angle_topic = "desired_steering_angle";
     robot.is_footprint_dynamic = false;
     robot.use_proportional_saturation = false;
 
@@ -329,10 +324,6 @@ public:
     goal_tolerance.xy_goal_tolerance = 0.2;
     goal_tolerance.free_goal_vel = false;
     goal_tolerance.max_adjust_goal_y = 0.0;
-    goal_tolerance.goal_approach_dist = 0.0;
-    goal_tolerance.goal_approach_vel = 0.2;
-    goal_tolerance.goal_approach_vel_theta = 0.0;
-    goal_tolerance.goal_approach_decel = 0.0;
 
     // Obstacles
 
@@ -382,7 +373,6 @@ public:
     optim.weight_steering_consistency = 1000;
     optim.weight_steering_rate = 1;
     optim.weight_steering_bound = 1000;
-    optim.weight_steering_comfort = 1;
     optim.weight_prefer_rotdir = 50;
 
     optim.weight_adapt_factor = 2.0;

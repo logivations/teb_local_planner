@@ -173,6 +173,20 @@ public:
    */
   virtual void setInitialSteeringAngle(double phi) {(void)phi;}
 
+  /**
+   * @brief Get the optimized steering angle of the first trajectory segment (the segment starting
+   *        at the current robot pose).
+   *
+   * This is the wheel angle the planner wants right now. Unlike the ratio omega/v of the velocity
+   * command it stays well-defined at (or near) standstill, so consumers can rotate the steering
+   * wheel in place before the robot starts moving.
+   * Only available for planners that model an explicit steering-angle state (see
+   * 'steering_state_enabled'); the default implementation reports unavailability.
+   * @param[out] phi desired steering angle [rad] (unchanged if unavailable)
+   * @return \c true if the steering state is active and \c phi was filled
+   */
+  virtual bool getFirstSteeringAngle(double& phi) const {(void)phi; return false;}
+
 
   /**
    * @brief Visualize planner specific stuff.

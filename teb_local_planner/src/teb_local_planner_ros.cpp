@@ -183,7 +183,18 @@ void TebLocalPlannerROS::initialize(nav2::LifecycleNode::SharedPtr node)
       RCLCPP_INFO(logger_, "Subscribed to '%s' (joint '%s') for the measured steering angle.",
                   cfg_->robot.steering_angle_topic.c_str(), cfg_->robot.steering_joint_name.c_str());
     }
-    
+
+    // setup publisher for the desired steering angle (explicit steering state). Like the
+    // subscription above, not gated on steering_state_enabled: messages are only published
+    // while the steering state is actually active.
+    if (!cfg_->robot.desired_steering_angle_topic.empty())
+    {
+      desired_steering_pub_ = node->create_publisher<sensor_msgs::msg::JointState>(
+                  cfg_->robot.desired_steering_angle_topic, rclcpp::SystemDefaultsQoS());
+      RCLCPP_INFO(logger_, "Publishing the desired steering angle on '%s' (joint '%s').",
+                  cfg_->robot.desired_steering_angle_topic.c_str(), cfg_->robot.steering_joint_name.c_str());
+    }
+
     // initialize failure detector
     //rclcpp::Node::SharedPtr nh_move_base("~");
     double controller_frequency = 5;
@@ -481,39 +492,6 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
     );
   }
   
-  // Approach-speed shaping: hold the translational speed limit at goal_approach_vel throughout
-  // the last goal_approach_dist before the final goal. TEB itself is time-optimal and brakes as
-  // late as acc_lim_x permits; arriving slowly leaves margin to absorb late corrections (e.g.
-  // localization jumps) without overshooting the goal. Ahead of the zone the limit rises along a
-  // constant-deceleration braking curve (acc_lim_x), so the command reaches goal_approach_vel
-  // right at the zone boundary instead of stepping down.
-  if (cfg_->goal_tolerance.goal_approach_dist > 0 && cfg_->goal_tolerance.goal_approach_vel > 0
-      && goal_idx >= static_cast<int>(global_plan_.size()) - 1) // only once the local plan reaches the final goal
-  {
-    const double dist_to_goal = (robot_goal_.position() - robot_pose_.position()).norm();
-    const double approach_vel = cfg_->goal_tolerance.goal_approach_vel;
-    const double dist_beyond_zone = std::max(0.0, dist_to_goal - cfg_->goal_tolerance.goal_approach_dist);
-    const double approach_decel = cfg_->goal_tolerance.goal_approach_decel > 0
-                                    ? cfg_->goal_tolerance.goal_approach_decel : cfg_->robot.acc_lim_x;
-    if (dist_beyond_zone == 0.0 || approach_decel > 0)
-    {
-      const double cap = std::sqrt(approach_vel * approach_vel
-                                   + 2.0 * approach_decel * dist_beyond_zone);
-      max_velocity_x = std::min(max_velocity_x, cap);
-      max_velocity_x_backwards = std::min(max_velocity_x_backwards, cap);
-    }
-
-    // Optional angular cap for the final (in-place) rotation: ramped in linearly across the
-    // approach zone so that no step occurs at the zone boundary.
-    if (cfg_->goal_tolerance.goal_approach_vel_theta > 0
-        && dist_to_goal < cfg_->goal_tolerance.goal_approach_dist)
-    {
-      const double ramp = dist_to_goal / cfg_->goal_tolerance.goal_approach_dist;
-      max_vel_theta = std::min(max_vel_theta, cfg_->goal_tolerance.goal_approach_vel_theta
-          + ramp * std::max(0.0, cfg_->robot.max_vel_theta - cfg_->goal_tolerance.goal_approach_vel_theta));
-    }
-  }
-
   // Saturate velocity, if the optimization results violates the constraints (could be possible due to soft constraints).
   saturateVelocity(cmd_vel.twist.linear.x, cmd_vel.twist.linear.y, cmd_vel.twist.angular.z, max_velocity_x, cfg_->robot.max_vel_y,
                    max_vel_theta, max_velocity_x_backwards);
@@ -528,6 +506,19 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
       last_cmd_steering_angle_ = {true, cmd_vel.twist.angular.z > 0 ? M_PI_2 : -M_PI_2};
     else if (cmd_vel.twist.linear.x != 0)
       last_cmd_steering_angle_ = {true, std::atan(cfg_->robot.wheelbase * cmd_vel.twist.angular.z / cmd_vel.twist.linear.x)};
+  }
+
+  // Publish the optimized steering angle of the first trajectory segment: at low speed (and at
+  // the limit v=0) omega/v of the velocity command no longer encodes the wheel angle, so the
+  // drive can use this to rotate the steering wheel in place before the robot (re)starts moving.
+  double desired_steering_angle = 0.0;
+  if (desired_steering_pub_ && planner_->getFirstSteeringAngle(desired_steering_angle))
+  {
+    sensor_msgs::msg::JointState desired_steering_msg;
+    desired_steering_msg.header.stamp = clock_->now();
+    desired_steering_msg.name.push_back(cfg_->robot.steering_joint_name);
+    desired_steering_msg.position.push_back(desired_steering_angle);
+    desired_steering_pub_->publish(desired_steering_msg);
   }
 
   // convert rot-vel to steering angle if desired (carlike robot).
@@ -1259,18 +1250,23 @@ void TebLocalPlannerROS::steeringAngleCB(const sensor_msgs::msg::JointState::Con
 
 void TebLocalPlannerROS::activate() {
   visualization_->on_activate();
+  if (desired_steering_pub_)
+    desired_steering_pub_->on_activate();
 
   return;
 }
 void TebLocalPlannerROS::deactivate() {
   visualization_->on_deactivate();
+  if (desired_steering_pub_)
+    desired_steering_pub_->on_deactivate();
 
   return;
 }
 void TebLocalPlannerROS::cleanup() {
   visualization_->on_cleanup();
+  desired_steering_pub_.reset();
   costmap_converter_->stopWorker();
-  
+
   return;
 }
 
