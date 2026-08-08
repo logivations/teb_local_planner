@@ -137,6 +137,30 @@ void TebVisualization::publishRobotFootprintModel(const PoseSE2& current_pose, c
   
 }
 
+void TebVisualization::publishMinObstacleDistBoundary(const PoseSE2& current_pose, const BaseRobotFootprintModel& robot_model, double min_obstacle_dist,
+                                                      const std::string& ns, const std_msgs::msg::ColorRGBA& color)
+{
+  if ( min_obstacle_dist <= 0 || printErrorWhenNotInitialized() )
+    return;
+
+  std::vector<visualization_msgs::msg::Marker> markers;
+  robot_model.visualizeInflatedFootprint(current_pose, min_obstacle_dist, markers, color);
+  if (markers.empty())
+    return;
+
+  int idx = 2000000;  // avoid overshadowing by obstacles and the footprint model
+  for (std::vector<visualization_msgs::msg::Marker>::iterator marker_it = markers.begin(); marker_it != markers.end(); ++marker_it, ++idx)
+  {
+    marker_it->header.frame_id = cfg_->map_frame;
+    marker_it->header.stamp = nh_->now();
+    marker_it->action = visualization_msgs::msg::Marker::ADD;
+    marker_it->ns = ns;
+    marker_it->id = idx;
+    marker_it->lifetime = rclcpp::Duration(2, 0);
+    teb_marker_pub_->publish(*marker_it);
+  }
+}
+
 void TebVisualization::publishInfeasibleRobotPose(const PoseSE2& current_pose, const BaseRobotFootprintModel& robot_model)
 {
   publishRobotFootprintModel(current_pose, robot_model, "InfeasibleRobotPoses", toColorMsg(0.5, 0.8, 0.0, 0.0));

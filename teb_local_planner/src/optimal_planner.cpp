@@ -123,8 +123,11 @@ void TebOptimalPlanner::visualize()
   visualization_->publishLocalPlanAndPoses(teb_);
   
   if (teb_.sizePoses() > 0)
+  {
     visualization_->publishRobotFootprintModel(teb_.Pose(0), *cfg_->robot_model);
-  
+    visualization_->publishMinObstacleDistBoundary(teb_.Pose(0), *cfg_->robot_model, cfg_->obstacles.min_obstacle_dist);
+  }
+
   if (cfg_->trajectory.publish_feedback)
     visualization_->publishFeedbackMessage(*this, *obstacles_);
  

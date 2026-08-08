@@ -44,6 +44,9 @@
 #include "teb_local_planner/obstacles.h"
 #include <visualization_msgs/msg/marker.hpp>
 
+#include <algorithm>
+#include <cmath>
+
 namespace teb_local_planner
 {
 
@@ -101,17 +104,88 @@ public:
     * @param color Color of the footprint
     */
   virtual void visualizeRobot(const PoseSE2& current_pose, std::vector<visualization_msgs::msg::Marker>& markers, const std_msgs::msg::ColorRGBA& color) const {}
-  
-  
+
+  /**
+    * @brief Visualize the boundary at distance \c inflation_dist around the footprint
+    *
+    * The boundary is the set of points whose distance to the footprint equals \c inflation_dist,
+    * i.e. with \c inflation_dist = min_obstacle_dist it shows where obstacles start to violate
+    * the minimum obstacle separation.
+    * The header, namespace, id and marker lifetime will be overwritten.
+    * @param current_pose Current robot pose
+    * @param inflation_dist distance [m] by which the footprint is inflated
+    * @param[out] markers container of marker messages describing the inflated boundary
+    * @param color Color of the boundary
+    */
+  virtual void visualizeInflatedFootprint(const PoseSE2& current_pose, double inflation_dist, std::vector<visualization_msgs::msg::Marker>& markers, const std_msgs::msg::ColorRGBA& color) const {}
+
   /**
    * @brief Compute the inscribed radius of the footprint model
    * @return inscribed radius
    */
   virtual double getInscribedRadius() = 0;
 
-	
+protected:
 
-public:	
+  /**
+    * @brief Create an empty LINE_STRIP boundary marker located at the robot pose (points are expected in the robot frame)
+    */
+  static visualization_msgs::msg::Marker& addBoundaryMarker(const PoseSE2& current_pose, std::vector<visualization_msgs::msg::Marker>& markers, const std_msgs::msg::ColorRGBA& color)
+  {
+    markers.push_back(visualization_msgs::msg::Marker());
+    visualization_msgs::msg::Marker& marker = markers.back();
+    marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+    current_pose.toPoseMsg(marker.pose);
+    marker.scale.x = 0.025;
+    marker.color = color;
+    return marker;
+  }
+
+  /**
+    * @brief Append a sampled circular arc (including both endpoints) to a marker point list
+    * @param center arc center
+    * @param radius arc radius
+    * @param start_angle angle of the first arc point
+    * @param rot_angle signed angle to sweep (negative: clockwise)
+    * @param[out] points point container the arc is appended to
+    */
+  static void appendArc(const Eigen::Vector2d& center, double radius, double start_angle, double rot_angle, std::vector<geometry_msgs::msg::Point>& points)
+  {
+    int num_steps = std::max(1, (int)std::ceil(std::abs(rot_angle) / (M_PI/18.0)));
+    for (int i = 0; i <= num_steps; ++i)
+    {
+      double angle = start_angle + rot_angle * i / num_steps;
+      geometry_msgs::msg::Point point;
+      point.x = center.x() + radius * std::cos(angle);
+      point.y = center.y() + radius * std::sin(angle);
+      point.z = 0;
+      points.push_back(point);
+    }
+  }
+
+  /**
+    * @brief Append the boundary of a capsule (segment inflated by \c radius) to a marker point list
+    * @param start segment start point
+    * @param end segment end point
+    * @param radius inflation radius
+    * @param[out] points point container the closed capsule outline is appended to
+    */
+  static void appendCapsuleOutline(const Eigen::Vector2d& start, const Eigen::Vector2d& end, double radius, std::vector<geometry_msgs::msg::Point>& points)
+  {
+    Eigen::Vector2d dir = end - start;
+    if (dir.norm() < 1e-6)
+    {
+      appendArc(start, radius, 0, 2*M_PI, points);
+      return;
+    }
+    std::size_t first_idx = points.size();
+    double angle = std::atan2(dir.y(), dir.x());
+    appendArc(end, radius, angle - M_PI_2, M_PI, points);
+    appendArc(start, radius, angle + M_PI_2, M_PI, points);
+    points.push_back(points[first_idx]); // close the outline
+  }
+
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
@@ -166,6 +240,19 @@ public:
   virtual double estimateSpatioTemporalDistance(const PoseSE2& current_pose, const Obstacle* obstacle, double t) const
   {
     return obstacle->getMinimumSpatioTemporalDistance(current_pose.position(), t);
+  }
+
+  /**
+    * @brief Visualize the boundary at distance \c inflation_dist around the footprint
+    * @param current_pose Current robot pose
+    * @param inflation_dist distance [m] by which the footprint is inflated
+    * @param[out] markers container of marker messages describing the inflated boundary
+    * @param color Color of the boundary
+    */
+  virtual void visualizeInflatedFootprint(const PoseSE2& current_pose, double inflation_dist, std::vector<visualization_msgs::msg::Marker>& markers, const std_msgs::msg::ColorRGBA& color) const
+  {
+    visualization_msgs::msg::Marker& marker = addBoundaryMarker(current_pose, markers, color);
+    appendArc(Eigen::Vector2d::Zero(), inflation_dist, 0, 2*M_PI, marker.points);
   }
 
   /**
@@ -244,7 +331,20 @@ public:
     marker.scale.z = 0.05;
     marker.color = color;
   }
-  
+
+  /**
+    * @brief Visualize the boundary at distance \c inflation_dist around the footprint
+    * @param current_pose Current robot pose
+    * @param inflation_dist distance [m] by which the footprint is inflated
+    * @param[out] markers container of marker messages describing the inflated boundary
+    * @param color Color of the boundary
+    */
+  virtual void visualizeInflatedFootprint(const PoseSE2& current_pose, double inflation_dist, std::vector<visualization_msgs::msg::Marker>& markers, const std_msgs::msg::ColorRGBA& color) const
+  {
+    visualization_msgs::msg::Marker& marker = addBoundaryMarker(current_pose, markers, color);
+    appendArc(Eigen::Vector2d::Zero(), radius_ + inflation_dist, 0, 2*M_PI, marker.points);
+  }
+
   /**
    * @brief Compute the inscribed radius of the footprint model
    * @return inscribed radius
@@ -357,12 +457,27 @@ public:
       marker2.color = color;
     }
   }
-  
+
+  /**
+    * @brief Visualize the boundary at distance \c inflation_dist around the footprint
+    * @param current_pose Current robot pose
+    * @param inflation_dist distance [m] by which the footprint is inflated
+    * @param[out] markers container of marker messages describing the inflated boundary
+    * @param color Color of the boundary
+    */
+  virtual void visualizeInflatedFootprint(const PoseSE2& current_pose, double inflation_dist, std::vector<visualization_msgs::msg::Marker>& markers, const std_msgs::msg::ColorRGBA& color) const
+  {
+    visualization_msgs::msg::Marker& front_marker = addBoundaryMarker(current_pose, markers, color);
+    appendArc(Eigen::Vector2d(front_offset_, 0.0), front_radius_ + inflation_dist, 0, 2*M_PI, front_marker.points);
+    visualization_msgs::msg::Marker& rear_marker = addBoundaryMarker(current_pose, markers, color);
+    appendArc(Eigen::Vector2d(-rear_offset_, 0.0), rear_radius_ + inflation_dist, 0, 2*M_PI, rear_marker.points);
+  }
+
   /**
    * @brief Compute the inscribed radius of the footprint model
    * @return inscribed radius
    */
-  virtual double getInscribedRadius() 
+  virtual double getInscribedRadius()
   {
       double min_longitudinal = std::min(rear_offset_ + rear_radius_, front_offset_ + front_radius_);
       double min_lateral = std::min(rear_radius_, front_radius_);
@@ -493,15 +608,28 @@ public:
     line_end_world.z = 0;
     marker.points.push_back(line_end_world);
 
-    marker.scale.x = 0.05; 
+    marker.scale.x = 0.05;
     marker.color = color;
   }
-  
+
+  /**
+    * @brief Visualize the boundary at distance \c inflation_dist around the footprint (capsule around the line)
+    * @param current_pose Current robot pose
+    * @param inflation_dist distance [m] by which the footprint is inflated
+    * @param[out] markers container of marker messages describing the inflated boundary
+    * @param color Color of the boundary
+    */
+  virtual void visualizeInflatedFootprint(const PoseSE2& current_pose, double inflation_dist, std::vector<visualization_msgs::msg::Marker>& markers, const std_msgs::msg::ColorRGBA& color) const
+  {
+    visualization_msgs::msg::Marker& marker = addBoundaryMarker(current_pose, markers, color);
+    appendCapsuleOutline(line_start_, line_end_, inflation_dist, marker.points);
+  }
+
   /**
    * @brief Compute the inscribed radius of the footprint model
    * @return inscribed radius
    */
-  virtual double getInscribedRadius() 
+  virtual double getInscribedRadius()
   {
       return 0.0; // lateral distance = 0.0
   }
@@ -622,16 +750,93 @@ public:
     point.z = 0;
     marker.points.push_back(point);
 
-    marker.scale.x = 0.025; 
+    marker.scale.x = 0.025;
     marker.color = color;
 
   }
-  
+
+  /**
+    * @brief Visualize the boundary at distance \c inflation_dist around the footprint
+    *
+    * The boundary consists of the polygon edges shifted outwards by \c inflation_dist
+    * connected by circular arcs around the vertices.
+    * @param current_pose Current robot pose
+    * @param inflation_dist distance [m] by which the footprint is inflated
+    * @param[out] markers container of marker messages describing the inflated boundary
+    * @param color Color of the boundary
+    */
+  virtual void visualizeInflatedFootprint(const PoseSE2& current_pose, double inflation_dist, std::vector<visualization_msgs::msg::Marker>& markers, const std_msgs::msg::ColorRGBA& color) const
+  {
+    if (vertices_.empty())
+      return;
+
+    visualization_msgs::msg::Marker& marker = addBoundaryMarker(current_pose, markers, color);
+
+    if (vertices_.size() == 1)
+    {
+      appendArc(vertices_.front(), inflation_dist, 0, 2*M_PI, marker.points);
+      return;
+    }
+    if (vertices_.size() == 2)
+    {
+      appendCapsuleOutline(vertices_.front(), vertices_.back(), inflation_dist, marker.points);
+      return;
+    }
+
+    // outward direction depends on the winding order (shoelace formula)
+    double twice_signed_area = 0;
+    for (std::size_t i = 0; i < vertices_.size(); ++i)
+    {
+      const Eigen::Vector2d& v = vertices_[i];
+      const Eigen::Vector2d& w = vertices_[(i+1) % vertices_.size()];
+      twice_signed_area += v.x()*w.y() - w.x()*v.y();
+    }
+    double orientation = twice_signed_area >= 0 ? 1.0 : -1.0;
+
+    for (std::size_t i = 0; i < vertices_.size(); ++i)
+    {
+      const Eigen::Vector2d& prev = vertices_[(i + vertices_.size() - 1) % vertices_.size()];
+      const Eigen::Vector2d& curr = vertices_[i];
+      const Eigen::Vector2d& next = vertices_[(i+1) % vertices_.size()];
+
+      double normal_in = std::atan2(curr.y() - prev.y(), curr.x() - prev.x()) - orientation*M_PI_2;
+      double normal_out = std::atan2(next.y() - curr.y(), next.x() - curr.x()) - orientation*M_PI_2;
+      double corner_angle = std::remainder(normal_out - normal_in, 2*M_PI);
+      if (corner_angle * orientation >= 0)
+      {
+        // convex corner: the boundary is a circular arc around the vertex
+        appendArc(curr, inflation_dist, normal_in, corner_angle, marker.points);
+      }
+      else
+      {
+        // concave corner: the boundary is the intersection of the two shifted edges
+        Eigen::Vector2d edge_in = curr - prev;
+        Eigen::Vector2d edge_out = next - curr;
+        Eigen::Vector2d p_in = curr + inflation_dist * Eigen::Vector2d(std::cos(normal_in), std::sin(normal_in));
+        Eigen::Vector2d p_out = curr + inflation_dist * Eigen::Vector2d(std::cos(normal_out), std::sin(normal_out));
+        double denom = edge_in.x()*edge_out.y() - edge_in.y()*edge_out.x();
+        Eigen::Vector2d corner = p_in;
+        if (std::abs(denom) > 1e-9)
+        {
+          Eigen::Vector2d delta = p_out - p_in;
+          double t = (delta.x()*edge_out.y() - delta.y()*edge_out.x()) / denom;
+          corner = p_in + t * edge_in;
+        }
+        geometry_msgs::msg::Point point;
+        point.x = corner.x();
+        point.y = corner.y();
+        point.z = 0;
+        marker.points.push_back(point);
+      }
+    }
+    marker.points.push_back(marker.points.front()); // close the boundary
+  }
+
   /**
    * @brief Compute the inscribed radius of the footprint model
    * @return inscribed radius
    */
-  virtual double getInscribedRadius() 
+  virtual double getInscribedRadius()
   {
      double min_dist = std::numeric_limits<double>::max();
      Eigen::Vector2d center(0.0, 0.0);

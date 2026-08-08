@@ -125,6 +125,20 @@ public:
                                   const std_msgs::msg::ColorRGBA& color = toColorMsg(0.5, 0.0, 0.8, 0.0));
 
   /**
+   * @brief Publish the boundary at distance \c min_obstacle_dist around the robot footprint model
+   *
+   * The boundary marks where obstacles start to violate the minimum obstacle separation
+   * of the trajectory optimization.
+   * @param current_pose Current pose of the robot
+   * @param robot_model Subclass of BaseRobotFootprintModel
+   * @param min_obstacle_dist distance [m] by which the footprint is inflated (nothing is published for values <= 0)
+   * @param ns Namespace for the marker objects
+   * @param color Color of the boundary
+   */
+  void publishMinObstacleDistBoundary(const PoseSE2& current_pose, const BaseRobotFootprintModel& robot_model, double min_obstacle_dist,
+                                      const std::string& ns = "MinObstacleDist", const std_msgs::msg::ColorRGBA& color = toColorMsg(0.5, 1.0, 0.6, 0.0));
+
+  /**
    * @brief Publish the robot footprints related to infeasible poses
    *
    * @param current_pose Current pose of the robot

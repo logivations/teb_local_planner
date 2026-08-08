@@ -165,7 +165,10 @@ void HomotopyClassPlanner::visualize()
       visualization_->publishLocalPlanAndPoses(best_teb->teb());
 
       if (best_teb->teb().sizePoses() > 0) //TODO maybe store current pose (start) within plan method as class field.
+      {
         visualization_->publishRobotFootprintModel(best_teb->teb().Pose(0), *cfg_->robot_model);
+        visualization_->publishMinObstacleDistBoundary(best_teb->teb().Pose(0), *cfg_->robot_model, cfg_->obstacles.min_obstacle_dist);
+      }
 
       // feedback message
       if (cfg_->trajectory.publish_feedback)
