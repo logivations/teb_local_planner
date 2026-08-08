@@ -189,10 +189,10 @@ void TebLocalPlannerROS::initialize(nav2::LifecycleNode::SharedPtr node)
     // while the steering state is actually active.
     if (!cfg_->robot.desired_steering_angle_topic.empty())
     {
-      desired_steering_pub_ = node->create_publisher<sensor_msgs::msg::JointState>(
+      desired_steering_pub_ = node->create_publisher<std_msgs::msg::Float64>(
                   cfg_->robot.desired_steering_angle_topic, rclcpp::SystemDefaultsQoS());
-      RCLCPP_INFO(logger_, "Publishing the desired steering angle on '%s' (joint '%s').",
-                  cfg_->robot.desired_steering_angle_topic.c_str(), cfg_->robot.steering_joint_name.c_str());
+      RCLCPP_INFO(logger_, "Publishing the desired steering angle on '%s'.",
+                  cfg_->robot.desired_steering_angle_topic.c_str());
     }
 
     // initialize failure detector
@@ -496,6 +496,23 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
   saturateVelocity(cmd_vel.twist.linear.x, cmd_vel.twist.linear.y, cmd_vel.twist.angular.z, max_velocity_x, cfg_->robot.max_vel_y,
                    max_vel_theta, max_velocity_x_backwards);
 
+  // Encode the planned steering angle into the velocity command whenever the robot should
+  // effectively stand still: a command of exactly zero velocity cannot express a wheel rotation
+  // over the (v, omega) interface, so below steering_creep_velocity we command a creep whose
+  // omega/v ratio implies the planned wheel angle — the drive then performs the same effective
+  // steering rotation without a dedicated steering-angle interface being wired through.
+  double desired_steering_angle = 0.0;
+  const bool have_desired_steering = planner_->getFirstSteeringAngle(desired_steering_angle);
+  if (have_desired_steering && cfg_->robot.steering_creep_velocity > 0
+      && std::fabs(cmd_vel.twist.linear.x) < cfg_->robot.steering_creep_velocity)
+  {
+    const double creep_dir = cmd_vel.twist.linear.x != 0.0 ? (cmd_vel.twist.linear.x > 0.0 ? 1.0 : -1.0)
+                             : (last_cmd_.linear.x < 0.0 ? -1.0 : 1.0);
+    cmd_vel.twist.linear.x = creep_dir * cfg_->robot.steering_creep_velocity;
+    cmd_vel.twist.angular.z = std::max(-cfg_->robot.max_vel_theta, std::min(cfg_->robot.max_vel_theta,
+        cmd_vel.twist.linear.x * std::tan(desired_steering_angle) / cfg_->robot.wheelbase));
+  }
+
   // Remember the wheel angle implied by this command (bicycle model, before the optional
   // cmd_angle_instead_rotvel conversion rewrites angular.z into a steering angle): it anchors the
   // steering state in the next cycle when no fresh measured steering angle is available. A pure
@@ -508,16 +525,12 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
       last_cmd_steering_angle_ = {true, std::atan(cfg_->robot.wheelbase * cmd_vel.twist.angular.z / cmd_vel.twist.linear.x)};
   }
 
-  // Publish the optimized steering angle of the first trajectory segment: at low speed (and at
-  // the limit v=0) omega/v of the velocity command no longer encodes the wheel angle, so the
-  // drive can use this to rotate the steering wheel in place before the robot (re)starts moving.
-  double desired_steering_angle = 0.0;
-  if (desired_steering_pub_ && planner_->getFirstSteeringAngle(desired_steering_angle))
+  // Publish the optimized steering angle of the first trajectory segment (introspection only —
+  // the command interface is cmd_vel with the creep encoding above).
+  if (desired_steering_pub_ && have_desired_steering)
   {
-    sensor_msgs::msg::JointState desired_steering_msg;
-    desired_steering_msg.header.stamp = clock_->now();
-    desired_steering_msg.name.push_back(cfg_->robot.steering_joint_name);
-    desired_steering_msg.position.push_back(desired_steering_angle);
+    std_msgs::msg::Float64 desired_steering_msg;
+    desired_steering_msg.data = desired_steering_angle;
     desired_steering_pub_->publish(desired_steering_msg);
   }
 

@@ -55,6 +55,7 @@
 // message types
 #include <nav_msgs/msg/path.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
+#include <std_msgs/msg/float64.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
@@ -406,7 +407,7 @@ private:
   std::mutex via_point_mutex_; //!< Mutex that locks the via_points container (multi-threaded)
 
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr steering_angle_sub_; //!< Subscriber for the measured steering angle (explicit steering state)
-  rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::JointState>::SharedPtr desired_steering_pub_; //!< Publisher for the optimized steering angle of the first trajectory segment (explicit steering state)
+  rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::Float64>::SharedPtr desired_steering_pub_; //!< Publisher for the optimized steering angle of the first trajectory segment (explicit steering state)
   std::mutex steering_meas_mutex_; //!< Mutex that locks the measured steering angle (multi-threaded)
   bool measured_steering_valid_ = false; //!< Keep track whether a measured steering angle has been received
   double measured_steering_angle_ = 0.0; //!< Most recent measured steering angle [rad]

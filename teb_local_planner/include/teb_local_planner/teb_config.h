@@ -123,7 +123,8 @@ public:
     std::string steering_angle_topic; //!< Topic providing the measured steering angle as sensor_msgs/JointState (empty: fall back to the steering angle implied by the last velocity command; only in use if steering_state_enabled)
     std::string steering_joint_name; //!< Name of the steering joint within the JointState message (empty: use the first entry)
     double measured_steering_max_age; //!< Maximum age [s] of the measured steering angle before falling back to the last commanded steering angle
-    std::string desired_steering_angle_topic; //!< Topic on which the optimized steering angle of the first trajectory segment is published as sensor_msgs/JointState. Unlike omega/v of the velocity command this angle stays well-defined at (or near) standstill, so the drive can rotate the wheel in place. Only published while the steering state is active (empty: disabled)
+    std::string desired_steering_angle_topic; //!< Topic on which the optimized steering angle of the first trajectory segment is published as std_msgs/Float64 (introspection; the command interface remains cmd_vel with the steering_creep_velocity encoding). Only published while the steering state is active (empty: disabled)
+    double steering_creep_velocity; //!< Minimum magnitude [m/s] of the published translational velocity while the steering state is active: commands below it are replaced by a creep command whose omega/v ratio implies the planned steering angle, so the wheel keeps rotating toward its planned angle through the plain (v, omega) interface even when the robot should effectively stand still (<=0 disables)
     bool is_footprint_dynamic; //<! If true, updated the footprint before checking trajectory feasibility
     bool use_proportional_saturation; //<! If true, reduce all twists components (linear x and y, and angular z) proportionally if any exceed its corresponding bounds, instead of saturating each one individually
     double transform_tolerance = 0.5; //<! Tolerance when querying the TF Tree for a transformation (seconds)
@@ -316,6 +317,7 @@ public:
     robot.steering_joint_name = "steering_joint";
     robot.measured_steering_max_age = 0.5;
     robot.desired_steering_angle_topic = "desired_steering_angle";
+    robot.steering_creep_velocity = 0.01;
     robot.is_footprint_dynamic = false;
     robot.use_proportional_saturation = false;
 
