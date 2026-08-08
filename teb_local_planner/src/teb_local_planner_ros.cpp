@@ -514,8 +514,15 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
     const double kMaxEncodeAngle = M_PI_2 - 0.01;
     const double encode_angle = std::max(-kMaxEncodeAngle, std::min(kMaxEncodeAngle, desired_steering_angle));
     cmd_vel.twist.linear.x = creep_dir * cfg_->robot.steering_creep_velocity;
-    cmd_vel.twist.angular.z = std::max(-cfg_->robot.max_vel_theta, std::min(cfg_->robot.max_vel_theta,
+    // Only the translational part is made small — the angular velocity keeps the desired turn
+    // speed: when the optimizer wants a rotation, pass its omega through unchanged (the implied
+    // wheel angle lands near lock, which is exactly how the tricycle turns on the spot). Only
+    // when no significant rotation is desired, fall back to encoding the planned wheel angle in
+    // omega/v so the wheel still tracks its planned angle while (almost) standing still.
+    const double omega_encode = std::max(-cfg_->robot.max_vel_theta, std::min(cfg_->robot.max_vel_theta,
         cmd_vel.twist.linear.x * std::tan(encode_angle) / cfg_->robot.wheelbase));
+    if (std::fabs(cmd_vel.twist.angular.z) < std::fabs(omega_encode))
+      cmd_vel.twist.angular.z = omega_encode;
   }
 
   // Remember the wheel angle implied by this command (bicycle model, before the optional
