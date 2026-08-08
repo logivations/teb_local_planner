@@ -506,11 +506,16 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
   if (have_desired_steering && cfg_->robot.steering_creep_velocity > 0
       && std::fabs(cmd_vel.twist.linear.x) < cfg_->robot.steering_creep_velocity)
   {
-    const double creep_dir = cmd_vel.twist.linear.x != 0.0 ? (cmd_vel.twist.linear.x > 0.0 ? 1.0 : -1.0)
-                             : (last_cmd_.linear.x < 0.0 ? -1.0 : 1.0);
+    // Keep the previous velocity sign: within the creep regime the freshly computed velocity is
+    // sub-threshold noise, and alternating creep directions flip the implied steering branch.
+    const double creep_dir = last_cmd_.linear.x < 0.0 ? -1.0 : 1.0;
+    // Encode slightly short of the +-90 deg lock: tan() wraps there, which would flip the omega
+    // sign (and thereby the implied steering side) for angles marginally past the lock.
+    const double kMaxEncodeAngle = M_PI_2 - 0.01;
+    const double encode_angle = std::max(-kMaxEncodeAngle, std::min(kMaxEncodeAngle, desired_steering_angle));
     cmd_vel.twist.linear.x = creep_dir * cfg_->robot.steering_creep_velocity;
     cmd_vel.twist.angular.z = std::max(-cfg_->robot.max_vel_theta, std::min(cfg_->robot.max_vel_theta,
-        cmd_vel.twist.linear.x * std::tan(desired_steering_angle) / cfg_->robot.wheelbase));
+        cmd_vel.twist.linear.x * std::tan(encode_angle) / cfg_->robot.wheelbase));
   }
 
   // Remember the wheel angle implied by this command (bicycle model, before the optional
