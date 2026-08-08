@@ -317,7 +317,7 @@ public:
     robot.steering_joint_name = "steering_joint";
     robot.measured_steering_max_age = 0.5;
     robot.desired_steering_angle_topic = "desired_steering_angle";
-    robot.steering_creep_velocity = 0.01;
+    robot.steering_creep_velocity = 0.001;
     robot.is_footprint_dynamic = false;
     robot.use_proportional_saturation = false;
 
