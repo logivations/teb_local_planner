@@ -401,6 +401,9 @@ bool TebOptimalPlanner::buildGraph(double weight_multiplier)
 
   if (cfg_->obstacles.include_dynamic_obstacles)
     AddEdgesDynamicObstacles();
+
+  if (cfg_->optim.weight_base_link_obstacle > 0 && cfg_->obstacles.base_link_obstacle_dist > 0)
+    AddEdgesBaseLinkObstacles();
   
   AddEdgesViaPoints();
   
@@ -489,6 +492,7 @@ void TebOptimalPlanner::AddTEBVertices()
   RCLCPP_DEBUG_EXPRESSION(node_->get_logger(), cfg_->optim.optimization_verbose, "Adding TEB vertices ...");
   unsigned int id_counter = 0; // used for vertices ids
   obstacles_per_vertex_.resize(teb_.sizePoses());
+  base_link_obstacles_per_vertex_.assign(teb_.sizePoses(), ObstContainer());
   auto iter_obstacle = obstacles_per_vertex_.begin();
   for (int i=0; i<teb_.sizePoses(); ++i)
   {
@@ -557,6 +561,18 @@ void TebOptimalPlanner::AddEdgesObstacles(double weight_multiplier)
       double right_min_dist = std::numeric_limits<double>::max();
       ObstaclePtr left_obstacle;
       ObstaclePtr right_obstacle;
+
+      // nearest left/right obstacle by base_link (pose point) distance, used
+      // by EdgeBaseLinkObstacle: its target distance is normally far beyond
+      // the min_obstacle_dist-scaled association cutoff below, so it needs
+      // its own bookkeeping (with its own cutoff) in this same pass.
+      const bool base_link_active = cfg_->optim.weight_base_link_obstacle > 0 &&
+        cfg_->obstacles.base_link_obstacle_dist > 0;
+      const double base_link_cutoff = cfg_->obstacles.base_link_obstacle_dist + 0.5;
+      double base_link_left_min_dist = std::numeric_limits<double>::max();
+      double base_link_right_min_dist = std::numeric_limits<double>::max();
+      ObstaclePtr base_link_left_obstacle;
+      ObstaclePtr base_link_right_obstacle;
       
       const Eigen::Vector2d pose_orient = teb_.Pose(i).orientationUnitVec();
       
@@ -566,6 +582,26 @@ void TebOptimalPlanner::AddEdgesObstacles(double weight_multiplier)
         // we handle dynamic obstacles differently below
         if(cfg_->obstacles.include_dynamic_obstacles && obst->isDynamic())
           continue;
+
+          bool is_left = cross2d(pose_orient, obst->getCentroid() - teb_.Pose(i).position()) > 0;
+
+          if (base_link_active)
+          {
+            double point_dist = obst->getMinimumDistance(teb_.Pose(i).position());
+            if (point_dist < base_link_cutoff)
+            {
+              if (is_left && point_dist < base_link_left_min_dist)
+              {
+                base_link_left_min_dist = point_dist;
+                base_link_left_obstacle = obst;
+              }
+              else if (!is_left && point_dist < base_link_right_min_dist)
+              {
+                base_link_right_min_dist = point_dist;
+                base_link_right_obstacle = obst;
+              }
+            }
+          }
 
           // calculate distance to robot model
           double dist = cfg_->robot_model->calculateDistance(teb_.Pose(i), obst.get());
@@ -581,7 +617,7 @@ void TebOptimalPlanner::AddEdgesObstacles(double weight_multiplier)
             continue;
           
           // determine side (left or right) and assign obstacle if closer than the previous one
-          if (cross2d(pose_orient, obst->getCentroid() - teb_.Pose(i).position()) > 0) // left
+          if (is_left)
           {
               if (dist < left_min_dist)
               {
@@ -603,6 +639,10 @@ void TebOptimalPlanner::AddEdgesObstacles(double weight_multiplier)
         iter_obstacle->push_back(left_obstacle);
       if (right_obstacle)
         iter_obstacle->push_back(right_obstacle);
+      if (base_link_left_obstacle)
+        base_link_obstacles_per_vertex_[i].push_back(base_link_left_obstacle);
+      if (base_link_right_obstacle)
+        base_link_obstacles_per_vertex_[i].push_back(base_link_right_obstacle);
 
       // continue here to ignore obstacles for the first pose, but use them later to create the EdgeVelocityObstacleRatio edges
       if (i == 0)
@@ -1081,6 +1121,29 @@ void TebOptimalPlanner::AddEdgesPreferRotDir()
         rotdir_edge->preferRight();
     
     optimizer_->addEdge(rotdir_edge);
+  }
+}
+
+void TebOptimalPlanner::AddEdgesBaseLinkObstacles()
+{
+  Eigen::Matrix<double,1,1> information;
+  information.fill(cfg_->optim.weight_base_link_obstacle);
+
+  // base_link_obstacles_per_vertex_ (nearest left/right obstacle by pose-point
+  // distance) is filled during the obstacle association pass in
+  // AddEdgesObstacles — like the velocity-obstacle-ratio edges, this edge
+  // therefore requires active obstacle edges (weight_obstacle > 0).
+  for (int index = 1; index < teb_.sizePoses() - 1; ++index)
+  {
+    for (const ObstaclePtr& obstacle : base_link_obstacles_per_vertex_[index])
+    {
+      EdgeBaseLinkObstacle* edge = new EdgeBaseLinkObstacle;
+      edge->setVertex(0, teb_.PoseVertex(index));
+      edge->setInformation(information);
+      edge->setTebConfig(*cfg_);
+      edge->setObstacle(obstacle.get());
+      optimizer_->addEdge(edge);
+    }
   }
 }
 

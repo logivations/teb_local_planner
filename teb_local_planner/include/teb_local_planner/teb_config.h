@@ -157,6 +157,7 @@ public:
     double obstacle_proximity_ratio_max_vel; //!< Ratio of the maximum velocities used as an upper bound when reducing the speed due to the proximity to a static obstacles
     double obstacle_proximity_lower_bound; //!< Distance to a static obstacle for which the velocity should be lower
     double obstacle_proximity_upper_bound; //!< Distance to a static obstacle for which the velocity should be higher
+    double base_link_obstacle_dist; //!< Desired separation of the base_link (rear-axle pose vertex) from obstacles, independent of the footprint model (0: disabled); see EdgeBaseLinkObstacle
   } obstacles; //!< Obstacle related parameters
 
 
@@ -187,6 +188,7 @@ public:
     double weight_dynamic_obstacle; //!< Optimization weight for satisfying a minimum separation from dynamic obstacles
     double weight_dynamic_obstacle_inflation; //!< Optimization weight for the inflation penalty of dynamic obstacles (should be small)
     double weight_velocity_obstacle_ratio; //!< Optimization weight for satisfying a maximum allowed velocity with respect to the distance to a static obstacle
+    double weight_base_link_obstacle; //!< Optimization weight for keeping the base_link itself away from obstacles (0: disabled)
     double weight_viapoint; //!< Optimization weight for minimizing the distance to via-points
     double weight_viapoint_orientation; //!< Optimization weight for aligning the trajectory heading with the via-point heading (0: disabled). Only via-points extracted from the global plan carry a heading, so this makes the band follow the global plan's heading profile (e.g. turnarounds happen where the global planner placed them). Requires a global planner producing meaningful orientations (e.g. Smac Hybrid-A*).
     double weight_adjust_goal; //!< Optimization weight for keeping an adjustable goal laterally close to the requested goal (only in use if max_adjust_goal_y is > 0)
@@ -345,6 +347,7 @@ public:
     obstacles.obstacle_proximity_ratio_max_vel = 1;
     obstacles.obstacle_proximity_lower_bound = 0;
     obstacles.obstacle_proximity_upper_bound = 0.5;
+    obstacles.base_link_obstacle_dist = 0.0;
 
     // Optimization
 
@@ -369,6 +372,7 @@ public:
     optim.weight_dynamic_obstacle = 50;
     optim.weight_dynamic_obstacle_inflation = 0.1;
     optim.weight_velocity_obstacle_ratio = 0;
+    optim.weight_base_link_obstacle = 0;
     optim.weight_viapoint = 1;
     optim.weight_viapoint_orientation = 0;
     optim.weight_adjust_goal = 1;

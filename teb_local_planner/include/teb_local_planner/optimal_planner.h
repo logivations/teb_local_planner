@@ -66,6 +66,7 @@
 #include "teb_local_planner/g2o_types/edge_time_optimal.h"
 #include "teb_local_planner/g2o_types/edge_shortest_path.h"
 #include "teb_local_planner/g2o_types/edge_obstacle.h"
+#include "teb_local_planner/g2o_types/edge_base_link_obstacle.h"
 #include "teb_local_planner/g2o_types/edge_dynamic_obstacle.h"
 #include "teb_local_planner/g2o_types/edge_via_point.h"
 #include "teb_local_planner/g2o_types/edge_prefer_rotdir.h"
@@ -723,6 +724,14 @@ protected:
   void AddEdgesVelocityObstacleRatio();
 
   /**
+   * @brief Add all edges (local cost function) pushing the base_link pose vertices themselves away from obstacles
+   * @see EdgeBaseLinkObstacle
+   * @see buildGraph
+   * @see optimizeGraph
+   */
+  void AddEdgesBaseLinkObstacles();
+
+  /**
    * @brief Release the goal pose vertex and add an edge that allows the optimizer to adjust the goal position
    *        slightly (laterally only, bounded by max_adjust_goal_y in the goal frame).
    *
@@ -814,6 +823,7 @@ protected:
   ObstContainer* obstacles_; //!< Store obstacles that are relevant for planning
   const ViaPointContainer* via_points_; //!< Store via points for planning
   std::vector<ObstContainer> obstacles_per_vertex_; //!< Store the obstacles associated with the n-1 initial vertices
+  std::vector<ObstContainer> base_link_obstacles_per_vertex_; //!< Nearest left/right obstacle per vertex for EdgeBaseLinkObstacle (filled during obstacle association)
   
   double cost_; //!< Store cost value of the current hyper-graph
   RotType prefer_rotdir_; //!< Store whether to prefer a specific initial rotation in optimization (might be activated in case the robot oscillates)

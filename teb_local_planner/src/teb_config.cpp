@@ -114,6 +114,7 @@ void TebConfig::declareParameters(const nav2::LifecycleNode::SharedPtr nh, const
   declare_parameter_if_not_declared(nh, name + "." + "obstacle_proximity_ratio_max_vel",  rclcpp::ParameterValue(obstacles.obstacle_proximity_ratio_max_vel));
   declare_parameter_if_not_declared(nh, name + "." + "obstacle_proximity_lower_bound", rclcpp::ParameterValue(obstacles.obstacle_proximity_lower_bound));
   declare_parameter_if_not_declared(nh, name + "." + "obstacle_proximity_upper_bound", rclcpp::ParameterValue(obstacles.obstacle_proximity_upper_bound));
+  declare_parameter_if_not_declared(nh, name + "." + "base_link_obstacle_dist", rclcpp::ParameterValue(obstacles.base_link_obstacle_dist));
 
   // Optimization
   declare_parameter_if_not_declared(nh, name + "." + "no_inner_iterations", rclcpp::ParameterValue(optim.no_inner_iterations));
@@ -146,6 +147,7 @@ void TebConfig::declareParameters(const nav2::LifecycleNode::SharedPtr nh, const
   declare_parameter_if_not_declared(nh, name + "." + "weight_adapt_factor", rclcpp::ParameterValue(optim.weight_adapt_factor));
   declare_parameter_if_not_declared(nh, name + "." + "obstacle_cost_exponent", rclcpp::ParameterValue(optim.obstacle_cost_exponent));
   declare_parameter_if_not_declared(nh, name + "." + "weight_velocity_obstacle_ratio", rclcpp::ParameterValue(optim.weight_velocity_obstacle_ratio));
+  declare_parameter_if_not_declared(nh, name + "." + "weight_base_link_obstacle", rclcpp::ParameterValue(optim.weight_base_link_obstacle));
 
   // Homotopy Class Planner
   declare_parameter_if_not_declared(nh, name + "." + "enable_homotopy_class_planning", rclcpp::ParameterValue(hcp.enable_homotopy_class_planning));
@@ -263,6 +265,7 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2::LifecycleNode::SharedPtr 
   nh->get_parameter_or(name + "." + "obstacle_proximity_ratio_max_vel", obstacles.obstacle_proximity_ratio_max_vel, obstacles.obstacle_proximity_ratio_max_vel);
   nh->get_parameter_or(name + "." + "obstacle_proximity_lower_bound", obstacles.obstacle_proximity_lower_bound, obstacles.obstacle_proximity_lower_bound);
   nh->get_parameter_or(name + "." + "obstacle_proximity_upper_bound", obstacles.obstacle_proximity_upper_bound, obstacles.obstacle_proximity_upper_bound);
+  nh->get_parameter_or(name + "." + "base_link_obstacle_dist", obstacles.base_link_obstacle_dist, obstacles.base_link_obstacle_dist);
   
   // Optimization
   nh->get_parameter_or(name + "." + "no_inner_iterations", optim.no_inner_iterations, optim.no_inner_iterations);
@@ -295,6 +298,7 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2::LifecycleNode::SharedPtr 
   nh->get_parameter_or(name + "." + "weight_adapt_factor", optim.weight_adapt_factor, optim.weight_adapt_factor);
   nh->get_parameter_or(name + "." + "obstacle_cost_exponent", optim.obstacle_cost_exponent, optim.obstacle_cost_exponent);
   nh->get_parameter_or(name + "." + "weight_velocity_obstacle_ratio", optim.weight_velocity_obstacle_ratio, optim.weight_velocity_obstacle_ratio);
+  nh->get_parameter_or(name + "." + "weight_base_link_obstacle", optim.weight_base_link_obstacle, optim.weight_base_link_obstacle);
   
   // Homotopy Class Planner
   nh->get_parameter_or(name + "." + "enable_homotopy_class_planning", hcp.enable_homotopy_class_planning, hcp.enable_homotopy_class_planning);
@@ -564,6 +568,8 @@ rcl_interfaces::msg::SetParametersResult
         obstacles.obstacle_proximity_lower_bound = parameter.as_double();
       } else if (name == node_name + ".obstacle_proximity_upper_bound") {
         obstacles.obstacle_proximity_upper_bound = parameter.as_double();
+      } else if (name == node_name + ".base_link_obstacle_dist") {
+        obstacles.base_link_obstacle_dist = parameter.as_double();
       }
       // Optimization
       else if (name == node_name + ".penalty_epsilon") {
