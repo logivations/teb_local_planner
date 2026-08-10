@@ -131,9 +131,7 @@ void TebOptimalPlanner::visualize()
     visualization_->publishMinObstacleDistBoundary(teb_.Pose(0), *cfg_->robot_model, cfg_->obstacles.min_obstacle_dist);
   }
 
-  // always publish (markers double as the goal indicator); without active
-  // adjustment requested and optimized goal coincide
-  if (teb_.sizePoses() > 0)
+  if (isGoalAdjustmentActive() && teb_.sizePoses() > 0)
     visualization_->publishGoalAdjustment(goal_adjust_ref_, teb_.BackPose());
 
   std::vector<double> steering_profile;
@@ -270,7 +268,7 @@ bool TebOptimalPlanner::optimizeTEB(int iterations_innerloop, int iterations_out
     weight_multiplier *= cfg_->optim.weight_adapt_factor;
   }
 
-  if (visualization_)
+  if (visualization_ && cfg_->trajectory.publish_feedback)
   {
     const std::chrono::duration<double> optimization_duration = std::chrono::steady_clock::now() - optimization_start;
     visualization_->publishOptimizationDuration(optimization_duration.count());
@@ -1000,7 +998,10 @@ void TebOptimalPlanner::AddEdgesTimeOptimal()
   information.fill(cfg_->optim.weight_optimaltime);
 
   // approximated hard constraint dt > 0 (see EdgeTimeDiffLowerBound); same weight class
-  // as the other approximated hard constraints
+  // as the other approximated hard constraints. Only needed with the explicit steering
+  // state: its rate edges create the stable negative-dt minimum the bound protects
+  // against, and without them the default optimization problem stays unchanged.
+  const bool add_lower_bound = isSteeringStateActive();
   Eigen::Matrix<double,1,1> bound_information;
   bound_information.fill(1000);
 
@@ -1012,11 +1013,14 @@ void TebOptimalPlanner::AddEdgesTimeOptimal()
     timeoptimal_edge->setTebConfig(*cfg_);
     optimizer_->addEdge(timeoptimal_edge);
 
-    EdgeTimeDiffLowerBound* bound_edge = new EdgeTimeDiffLowerBound;
-    bound_edge->setVertex(0,teb_.TimeDiffVertex(i));
-    bound_edge->setInformation(bound_information);
-    bound_edge->setTebConfig(*cfg_);
-    optimizer_->addEdge(bound_edge);
+    if (add_lower_bound)
+    {
+      EdgeTimeDiffLowerBound* bound_edge = new EdgeTimeDiffLowerBound;
+      bound_edge->setVertex(0,teb_.TimeDiffVertex(i));
+      bound_edge->setInformation(bound_information);
+      bound_edge->setTebConfig(*cfg_);
+      optimizer_->addEdge(bound_edge);
+    }
   }
 }
 
@@ -1482,7 +1486,7 @@ bool TebOptimalPlanner::getVelocityCommand(double& vx, double& vy, double& omega
         break;
     }
   }
-  if (dt < EdgeTimeDiffLowerBound::dt_min_)
+  if (isSteeringStateActive() && dt < EdgeTimeDiffLowerBound::dt_min_)
   {
     // A non-positive (or near-zero) dt means the optimizer ended the cycle mid-excursion
     // below the EdgeTimeDiffLowerBound wall (it can cross in the last inner iteration, with
@@ -1495,6 +1499,16 @@ bool TebOptimalPlanner::getVelocityCommand(double& vx, double& vy, double& omega
       "TebOptimalPlanner::getVelocityCommand() - clamping first-segment dt %.4f to %.2f "
       "(optimizer ended below the timediff lower bound)", dt, EdgeTimeDiffLowerBound::dt_min_);
     dt = EdgeTimeDiffLowerBound::dt_min_;
+  }
+  else if (dt <= 0)
+  {
+    // without the steering state (and thus without the timediff lower-bound edge) keep the
+    // original behavior: report the invalid trajectory so the caller resets the planner
+    RCLCPP_ERROR(node_->get_logger(), "TebOptimalPlanner::getVelocityCommand() - timediff<=0 is invalid!");
+    vx = 0;
+    vy = 0;
+    omega = 0;
+    return false;
   }
 	  
   // Get velocity from the first two configurations
