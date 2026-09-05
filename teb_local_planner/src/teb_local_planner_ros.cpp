@@ -408,6 +408,7 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
     // The last-command estimate persists through stop commands: the wheel stays where it was parked.
     if (!use_measured && last_cmd_steering_angle_.first)
       steering_angle = last_cmd_steering_angle_.second;
+    anchored_steering_angle_ = {use_measured || last_cmd_steering_angle_.first, steering_angle};
     planner_->setInitialSteeringAngle(steering_angle);
   }
 
@@ -503,6 +504,40 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
   // steering rotation without a dedicated steering-angle interface being wired through.
   double desired_steering_angle = 0.0;
   const bool have_desired_steering = planner_->getFirstSteeringAngle(desired_steering_angle);
+  // Drive-direction hysteresis: a freshly re-planned trajectory can reverse the driving
+  // direction at a crawl every cycle (the shuffling failure mode of the steering state).
+  // Below drive_direction_hysteresis_velocity a reversal is not executed: the command is
+  // demoted to a creep, which keeps the previous direction and keeps the wheel steering.
+  if (have_desired_steering && cfg_->robot.drive_direction_hysteresis_velocity > 0
+      && std::fabs(cmd_vel.twist.linear.x) < cfg_->robot.drive_direction_hysteresis_velocity
+      && last_cmd_.linear.x != 0.0 && (cmd_vel.twist.linear.x < 0.0) != (last_cmd_.linear.x < 0.0))
+  {
+    cmd_vel.twist.linear.x = 0.0;
+  }
+  // Lock latch: once the plan asks for (near) full lock, keep asking for that side until the
+  // wheel has actually arrived. Re-planning re-derives the lock side from a near-standstill
+  // segment every cycle, and a wheel that needs ~1 s per 90 deg never gets there if the request
+  // is withdrawn or reversed after a few hundred milliseconds.
+  if (have_desired_steering && cfg_->robot.steering_lock_latch_angle > 0)
+  {
+    const double latch = cfg_->robot.steering_lock_latch_angle;
+    if (std::fabs(desired_steering_angle) >= latch)
+    {
+      if (!latched_lock_.first)
+        latched_lock_ = {true, desired_steering_angle};
+      const bool same_side = (desired_steering_angle < 0.0) == (latched_lock_.second < 0.0);
+      const bool wheel_arrived = anchored_steering_angle_.first
+        && std::fabs(anchored_steering_angle_.second - latched_lock_.second) <= cfg_->robot.steering_lock_release_tolerance;
+      if (same_side || wheel_arrived)
+        latched_lock_.second = desired_steering_angle; // follow the plan on the latched side
+      else
+        desired_steering_angle = latched_lock_.second; // hold the latched side until the wheel is there
+    }
+    else
+    {
+      latched_lock_.first = false; // the plan wants to drive; release
+    }
+  }
   if (have_desired_steering && cfg_->robot.steering_creep_velocity > 0
       && std::fabs(cmd_vel.twist.linear.x) < cfg_->robot.steering_creep_velocity)
   {
@@ -523,6 +558,10 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
         cmd_vel.twist.linear.x * std::tan(encode_angle) / cfg_->robot.wheelbase));
     if (std::fabs(cmd_vel.twist.angular.z) < std::fabs(omega_encode))
       cmd_vel.twist.angular.z = omega_encode;
+    // The rotation direction passed through must agree with the (latched) steering side: the
+    // sign of a near-standstill segment's omega is noise, the steering state's sign is not.
+    else if ((cmd_vel.twist.angular.z < 0.0) != (omega_encode < 0.0))
+      cmd_vel.twist.angular.z = -cmd_vel.twist.angular.z;
   }
 
   // Remember the wheel angle implied by this command (bicycle model, before the optional

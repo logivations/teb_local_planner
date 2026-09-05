@@ -268,6 +268,9 @@ bool TebOptimalPlanner::optimizeTEB(int iterations_innerloop, int iterations_out
     weight_multiplier *= cfg_->optim.weight_adapt_factor;
   }
 
+  // keep the converged estimates for the next cycle (see syncSteeringVertices)
+  storeSteeringSolution();
+
   if (visualization_ && cfg_->trajectory.publish_feedback)
   {
     const std::chrono::duration<double> optimization_duration = std::chrono::steady_clock::now() - optimization_start;
@@ -311,6 +314,7 @@ bool TebOptimalPlanner::plan(const std::vector<geometry_msgs::msg::PoseStamped>&
     {
       RCLCPP_DEBUG(node_->get_logger(), "New goal: distance to existing goal is higher than the specified threshold. Reinitalizing trajectories.");
       teb_.clearTimedElasticBand();
+      steering_prev_solution_.clear(); // nothing of the previous trajectory survives
       teb_.initTrajectoryToGoal(initial_plan, cfg_->robot.max_vel_x, cfg_->robot.max_vel_theta, cfg_->trajectory.global_plan_overwrite_orientation,
         cfg_->trajectory.min_samples, cfg_->trajectory.allow_init_with_backwards_motion);
     }
@@ -356,6 +360,7 @@ bool TebOptimalPlanner::plan(const PoseSE2& start, const PoseSE2& goal, const ge
     {
       RCLCPP_DEBUG(node_->get_logger(), "New goal: distance to existing goal is higher than the specified threshold. Reinitalizing trajectories.");
       teb_.clearTimedElasticBand();
+      steering_prev_solution_.clear(); // nothing of the previous trajectory survives
       teb_.initTrajectoryToGoal(start, goal, 0, cfg_->robot.max_vel_x, cfg_->trajectory.min_samples, cfg_->trajectory.allow_init_with_backwards_motion);
     }
   }
@@ -1262,11 +1267,53 @@ void TebOptimalPlanner::syncSteeringVertices()
   double phi_prev = steering_start_.first ? steering_start_.second : 0.0;
   for (int i = 0; i < num_segments; ++i)
   {
-    const std::pair<bool, double> segment_steering = steeringFromSegment(teb_.Pose(i), teb_.Pose(i+1), cfg_->robot.wheelbase);
-    const double phi = segment_steering.first ? closestSteeringBranch(segment_steering.second, phi_prev) : phi_prev;
+    // Carry over the estimate the optimizer converged to in the previous cycle for the segment
+    // that covered this piece of the trajectory. Deriving every angle from geometry again throws
+    // away the branch the optimizer had settled on, and at +-pi/2 (turn in place) the geometric
+    // angle is ambiguous, so a re-planned trajectory can flip the whole steering profile from one
+    // cycle to the next even though the robot and the path barely moved.
+    const PoseSE2 midpoint = segmentMidpoint(teb_.Pose(i), teb_.Pose(i+1));
+    double best_dist = steering_carry_max_dist_;
+    const double* carried = nullptr;
+    for (const std::pair<PoseSE2, double>& previous : steering_prev_solution_)
+    {
+      const double dist = (previous.first.position() - midpoint.position()).norm()
+        + steering_carry_heading_weight_ * std::fabs(g2o::normalize_theta(previous.first.theta() - midpoint.theta()));
+      if (dist < best_dist)
+      {
+        best_dist = dist;
+        carried = &previous.second;
+      }
+    }
+    double phi;
+    if (carried)
+      phi = *carried;
+    else
+    {
+      const std::pair<bool, double> segment_steering = steeringFromSegment(teb_.Pose(i), teb_.Pose(i+1), cfg_->robot.wheelbase);
+      phi = segment_steering.first ? closestSteeringBranch(segment_steering.second, phi_prev) : phi_prev;
+    }
     steering_vec_[i]->steering() = phi;
     phi_prev = phi;
   }
+}
+
+PoseSE2 TebOptimalPlanner::segmentMidpoint(const PoseSE2& pose1, const PoseSE2& pose2)
+{
+  return PoseSE2(0.5 * (pose1.position() + pose2.position()),
+                 pose1.theta() + 0.5 * g2o::normalize_theta(pose2.theta() - pose1.theta()));
+}
+
+void TebOptimalPlanner::storeSteeringSolution()
+{
+  steering_prev_solution_.clear();
+  if (!isSteeringStateActive())
+    return;
+
+  const int num_segments = std::min<int>(static_cast<int>(steering_vec_.size()), std::max(0, teb_.sizePoses() - 1));
+  steering_prev_solution_.reserve(num_segments);
+  for (int i = 0; i < num_segments; ++i)
+    steering_prev_solution_.emplace_back(segmentMidpoint(teb_.Pose(i), teb_.Pose(i+1)), steering_vec_[i]->steering());
 }
 
 void TebOptimalPlanner::clearSteeringVertices()

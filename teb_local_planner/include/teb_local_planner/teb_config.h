@@ -124,6 +124,9 @@ public:
     std::string steering_joint_name; //!< Name of the steering joint within the JointState message (empty: use the first entry)
     double measured_steering_max_age; //!< Maximum age [s] of the measured steering angle before falling back to the last commanded steering angle
     std::string desired_steering_angle_topic; //!< Topic on which the optimized steering angle of the first trajectory segment is published as std_msgs/Float64 (introspection; the command interface remains cmd_vel with the steering_creep_velocity encoding). Only published while the steering state is active (empty: disabled)
+    double steering_lock_latch_angle; //!< [rad] Once the planned steering angle of the first segment exceeds this magnitude, the requested lock side is latched until the measured wheel is within steering_lock_release_tolerance of it (or the plan drops below the latch angle again), so a re-planned trajectory cannot flip the wheel command back and forth before the wheel arrives (<=0 disables; only in use if steering_state_enabled)
+    double steering_lock_release_tolerance; //!< [rad] Wheel angle tolerance that releases a latched lock request (see steering_lock_latch_angle)
+    double drive_direction_hysteresis_velocity; //!< [m/s] A translational command below this magnitude that reverses the previous driving direction is not executed but treated as a creep (the wheel keeps steering, the robot holds its position): reversing at a crawl every cycle is the shuffling failure mode of the steering state (<=0 disables)
     double steering_creep_velocity; //!< Minimum magnitude [m/s] of the published translational velocity while the steering state is active: commands below it are replaced by a creep command whose omega/v ratio implies the planned steering angle, so the wheel keeps rotating toward its planned angle through the plain (v, omega) interface even when the robot should effectively stand still (<=0 disables)
     bool is_footprint_dynamic; //<! If true, updated the footprint before checking trajectory feasibility
     bool use_proportional_saturation; //<! If true, reduce all twists components (linear x and y, and angular z) proportionally if any exceed its corresponding bounds, instead of saturating each one individually
@@ -320,6 +323,9 @@ public:
     robot.measured_steering_max_age = 0.5;
     robot.desired_steering_angle_topic = "desired_steering_angle";
     robot.steering_creep_velocity = 0.001;
+    robot.steering_lock_latch_angle = 1.05;
+    robot.steering_lock_release_tolerance = 0.2;
+    robot.drive_direction_hysteresis_velocity = 0.0;
     robot.is_footprint_dynamic = false;
     robot.use_proportional_saturation = false;
 

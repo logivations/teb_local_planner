@@ -375,6 +375,7 @@ public:
   {
     clearGraph();
     clearSteeringVertices();
+    steering_prev_solution_.clear();
     teb_.clearTimedElasticBand();
   }
   
@@ -808,6 +809,20 @@ protected:
    */
   void clearSteeringVertices();
 
+  /**
+   * @brief Remember the converged steering estimates of the current trajectory.
+   *
+   * Each estimate is stored together with the midpoint pose of the segment it belongs to, so the
+   * next planning cycle can carry it over to whichever segment covers that piece of the
+   * trajectory (see syncSteeringVertices).
+   */
+  void storeSteeringSolution();
+
+  /**
+   * @brief Midpoint pose of a trajectory segment (position average, shortest-way heading average).
+   */
+  static PoseSE2 segmentMidpoint(const PoseSE2& pose1, const PoseSE2& pose2);
+
   //@}
   
   
@@ -838,6 +853,9 @@ protected:
   PoseSE2 goal_adjust_ref_; //!< Store the requested (unadjusted) goal pose as reference for the goal adjustment edge
   std::vector<VertexSteeringAngle*> steering_vec_; //!< Steering-angle vertices (owned), one per trajectory segment (only if the steering state is active)
   std::pair<bool, double> steering_start_ = {false, 0.0}; //!< Store the measured (or last commanded) steering angle at the start pose
+  std::vector<std::pair<PoseSE2, double>> steering_prev_solution_; //!< Converged steering estimates of the previous planning cycle, each keyed by the midpoint pose of its segment
+  double steering_carry_max_dist_ = 0.5; //!< [m] Maximum pose distance at which a previous estimate is carried over to a new segment
+  double steering_carry_heading_weight_ = 0.5; //!< [m/rad] Weight of the heading difference in that pose distance
   bool steering_warm_start_valid_ = false; //!< False whenever the trajectory was re-initialized/pruned since the last sync (steering_vec_ no longer maps onto the segments)
 
   bool initialized_; //!< Keeps track about the correct initialization of this class
