@@ -124,7 +124,7 @@ public:
     std::string steering_joint_name; //!< Name of the steering joint within the JointState message (empty: use the first entry)
     double measured_steering_max_age; //!< Maximum age [s] of the measured steering angle before falling back to the last commanded steering angle
     std::string desired_steering_angle_topic; //!< Topic on which the optimized steering angle of the first trajectory segment is published as std_msgs/Float64 (introspection; the command interface remains cmd_vel with the steering_creep_velocity encoding). Only published while the steering state is active (empty: disabled)
-    double steering_creep_velocity; //!< Minimum magnitude [m/s] of the published translational velocity while the steering state is active: commands below it are replaced by a creep command whose omega/v ratio implies the planned steering angle, so the wheel keeps rotating toward its planned angle through the plain (v, omega) interface even when the robot should effectively stand still (<=0 disables)
+    double steering_creep_velocity; //!< Minimum magnitude [m/s] of the published translational velocity while the steering state is active: commands below it are replaced by a creep command whose omega/v ratio implies the planned steering angle, so the wheel keeps rotating toward its planned angle through the plain (v, omega) interface even when the robot should effectively stand still (<=0 disables). MUST exceed the deadband of every downstream velocity filter (nav2_velocity_smoother's deadband_velocity[0], 0.005 m/s in this stack) with margin: a creep that is rounded to zero reaches the tricycle controller as (0, omega), which takes its spin branch and commands +-90 deg instead of the planned angle. The robot inches forward at this speed once the wheel has arrived, so keep it small but representable
     bool is_footprint_dynamic; //<! If true, updated the footprint before checking trajectory feasibility
     bool use_proportional_saturation; //<! If true, reduce all twists components (linear x and y, and angular z) proportionally if any exceed its corresponding bounds, instead of saturating each one individually
     double transform_tolerance = 0.5; //<! Tolerance when querying the TF Tree for a transformation (seconds)
@@ -319,7 +319,7 @@ public:
     robot.steering_joint_name = "steering_joint";
     robot.measured_steering_max_age = 0.5;
     robot.desired_steering_angle_topic = "desired_steering_angle";
-    robot.steering_creep_velocity = 0.001;
+    robot.steering_creep_velocity = 0.03;
     robot.is_footprint_dynamic = false;
     robot.use_proportional_saturation = false;
 

@@ -497,10 +497,32 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
                    max_vel_theta, max_velocity_x_backwards);
 
   // Encode the planned steering angle into the velocity command whenever the robot should
-  // effectively stand still: a command of exactly zero velocity cannot express a wheel rotation
-  // over the (v, omega) interface, so below steering_creep_velocity we command a creep whose
-  // omega/v ratio implies the planned wheel angle — the drive then performs the same effective
-  // steering rotation without a dedicated steering-angle interface being wired through.
+  // effectively stand still. The (v, omega) interface carries a wheel angle only in the ratio
+  // omega/v: the tricycle controller derives alpha = atan(wheelbase * omega / v) from it, and in
+  // its non-exact mode it scales the drive-wheel speed by cos(alpha_cmd - alpha_measured) (down
+  // to 1 % beyond pi/2), so it performs the stop-and-steer by itself as long as it is handed an
+  // honest (v, omega) pair. What it cannot be handed is a standstill: at v == 0 with omega == 0
+  // it commands the wheel straight, and at v == 0 with omega != 0 it takes the spin branch and
+  // commands +-90 deg with the sign of omega, discarding the planned angle entirely.
+  //
+  // Two properties of the encoded command are therefore load-bearing, and both were violated:
+  //
+  //  * |v| must survive every downstream stage. The nav2 velocity smoother zeroes any linear
+  //    velocity below deadband_velocity[0] (0.005 m/s in this stack) unconditionally, while the
+  //    angular deadband is 0, so a 0.001 m/s creep arrived at the controller as (0, omega) --
+  //    the spin branch, i.e. exactly two representable wheel angles, +90 and -90 deg. Every sign
+  //    flip of the planned angle then cost a full pi of wheel travel. steering_creep_velocity
+  //    must stay above that deadband with margin (the smoother also scales the pair down while
+  //    omega is acceleration-limited, which shrinks v further).
+  //
+  //  * omega must be *derived* from the angle, not merely bounded by it. Passing the planned
+  //    omega through whenever it is larger than the encoded one hands the controller a ratio
+  //    that no longer implies the planned angle: at a 0.001 m/s creep the whole representable
+  //    angle range mapped into |omega| <= 0.083 rad/s while the planner's omega runs up to
+  //    max_vel_theta, so the pass-through was the common case and the angle channel was dead.
+  //    The encoded omega is clamped to max_vel_theta, which near the lock costs a couple of
+  //    degrees of encoded angle (at v = 0.03 m/s and max_vel_theta = 0.4 rad/s the encoding
+  //    saturates at 87.7 deg) and still produces the turn-in-place the optimizer asked for.
   double desired_steering_angle = 0.0;
   const bool have_desired_steering = planner_->getFirstSteeringAngle(desired_steering_angle);
   if (have_desired_steering && cfg_->robot.steering_creep_velocity > 0
@@ -508,21 +530,16 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
   {
     // Keep the previous velocity sign: within the creep regime the freshly computed velocity is
     // sub-threshold noise, and alternating creep directions flip the implied steering branch.
+    // The sign only decides which way the robot inches; the implied angle atan(L*omega/v) is
+    // invariant under flipping v and omega together, which is what the encoding below does.
     const double creep_dir = last_cmd_.linear.x < 0.0 ? -1.0 : 1.0;
     // Encode slightly short of the +-90 deg lock: tan() wraps there, which would flip the omega
     // sign (and thereby the implied steering side) for angles marginally past the lock.
     const double kMaxEncodeAngle = M_PI_2 - 0.01;
     const double encode_angle = std::max(-kMaxEncodeAngle, std::min(kMaxEncodeAngle, desired_steering_angle));
     cmd_vel.twist.linear.x = creep_dir * cfg_->robot.steering_creep_velocity;
-    // Only the translational part is made small — the angular velocity keeps the desired turn
-    // speed: when the optimizer wants a rotation, pass its omega through unchanged (the implied
-    // wheel angle lands near lock, which is exactly how the tricycle turns on the spot). Only
-    // when no significant rotation is desired, fall back to encoding the planned wheel angle in
-    // omega/v so the wheel still tracks its planned angle while (almost) standing still.
-    const double omega_encode = std::max(-cfg_->robot.max_vel_theta, std::min(cfg_->robot.max_vel_theta,
+    cmd_vel.twist.angular.z = std::max(-cfg_->robot.max_vel_theta, std::min(cfg_->robot.max_vel_theta,
         cmd_vel.twist.linear.x * std::tan(encode_angle) / cfg_->robot.wheelbase));
-    if (std::fabs(cmd_vel.twist.angular.z) < std::fabs(omega_encode))
-      cmd_vel.twist.angular.z = omega_encode;
   }
 
   // Remember the wheel angle implied by this command (bicycle model, before the optional
