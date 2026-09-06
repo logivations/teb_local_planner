@@ -87,6 +87,8 @@ void TebConfig::declareParameters(const nav2::LifecycleNode::SharedPtr nh, const
   declare_parameter_if_not_declared(nh, name + "." + "max_steering_angle", rclcpp::ParameterValue(robot.max_steering_angle));
   declare_parameter_if_not_declared(nh, name + "." + "max_steering_angle_right", rclcpp::ParameterValue(robot.max_steering_angle_right));
   declare_parameter_if_not_declared(nh, name + "." + "max_steering_rate", rclcpp::ParameterValue(robot.max_steering_rate));
+  declare_parameter_if_not_declared(nh, name + "." + "steering_commit_time", rclcpp::ParameterValue(robot.steering_commit_time));
+  declare_parameter_if_not_declared(nh, name + "." + "steering_min_segment_motion", rclcpp::ParameterValue(robot.steering_min_segment_motion));
   declare_parameter_if_not_declared(nh, name + "." + "steering_lock_latch_angle", rclcpp::ParameterValue(robot.steering_lock_latch_angle));
   declare_parameter_if_not_declared(nh, name + "." + "steering_lock_release_tolerance", rclcpp::ParameterValue(robot.steering_lock_release_tolerance));
   declare_parameter_if_not_declared(nh, name + "." + "drive_direction_hysteresis_velocity", rclcpp::ParameterValue(robot.drive_direction_hysteresis_velocity));
@@ -241,6 +243,8 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2::LifecycleNode::SharedPtr 
   nh->get_parameter_or(name + "." + "max_steering_angle", robot.max_steering_angle, robot.max_steering_angle);
   nh->get_parameter_or(name + "." + "max_steering_angle_right", robot.max_steering_angle_right, robot.max_steering_angle_right);
   nh->get_parameter_or(name + "." + "max_steering_rate", robot.max_steering_rate, robot.max_steering_rate);
+  nh->get_parameter_or(name + "." + "steering_commit_time", robot.steering_commit_time, robot.steering_commit_time);
+  nh->get_parameter_or(name + "." + "steering_min_segment_motion", robot.steering_min_segment_motion, robot.steering_min_segment_motion);
   nh->get_parameter_or(name + "." + "steering_lock_latch_angle", robot.steering_lock_latch_angle, robot.steering_lock_latch_angle);
   nh->get_parameter_or(name + "." + "steering_lock_release_tolerance", robot.steering_lock_release_tolerance, robot.steering_lock_release_tolerance);
   nh->get_parameter_or(name + "." + "drive_direction_hysteresis_velocity", robot.drive_direction_hysteresis_velocity, robot.drive_direction_hysteresis_velocity);

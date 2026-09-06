@@ -503,7 +503,24 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
   // omega/v ratio implies the planned wheel angle — the drive then performs the same effective
   // steering rotation without a dedicated steering-angle interface being wired through.
   double desired_steering_angle = 0.0;
-  const bool have_desired_steering = planner_->getFirstSteeringAngle(desired_steering_angle);
+  bool have_desired_steering = planner_->getFirstSteeringAngle(desired_steering_angle);
+  if (!have_desired_steering && cfg_->robot.steering_state_enabled && last_cmd_steering_angle_.first)
+  {
+    // Every segment of the trajectory is dwelling, so the plan says nothing about where the wheel
+    // should point. Hold the angle already commanded rather than letting the encoding fall back to
+    // zero, which would drive the wheel straight in the middle of a stop-and-steer.
+    desired_steering_angle = last_cmd_steering_angle_.second;
+    have_desired_steering = true;
+  }
+  if (cfg_->robot.steering_state_enabled)
+  {
+    int dbg_seg = -1, dbg_segments = 0; double dbg_motion = 0.0; const void* dbg_inst = nullptr;
+    planner_->getSteeringDiagnostics(dbg_seg, dbg_motion, dbg_segments, dbg_inst);
+    RCLCPP_INFO(logger_, "STEERDBG phi=%.4f seg=%d motion=%.5f nseg=%d inst=%p anchored=%.4f cmd_v=%.4f cmd_w=%.4f",
+      desired_steering_angle, dbg_seg, dbg_motion, dbg_segments, dbg_inst,
+      anchored_steering_angle_.first ? anchored_steering_angle_.second : 99.0,
+      cmd_vel.twist.linear.x, cmd_vel.twist.angular.z);
+  }
   // Drive-direction hysteresis: a freshly re-planned trajectory can reverse the driving
   // direction at a crawl every cycle (the shuffling failure mode of the steering state).
   // Below drive_direction_hysteresis_velocity a reversal is not executed: the command is
@@ -514,28 +531,46 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
   {
     cmd_vel.twist.linear.x = 0.0;
   }
-  // Lock latch: once the plan asks for (near) full lock, keep asking for that side until the
-  // wheel has actually arrived. Re-planning re-derives the lock side from a near-standstill
-  // segment every cycle, and a wheel that needs ~1 s per 90 deg never gets there if the request
-  // is withdrawn or reversed after a few hundred milliseconds.
-  if (have_desired_steering && cfg_->robot.steering_lock_latch_angle > 0)
+  // Steering commitment. The trajectory is bistable while the robot dwells: the segment count and
+  // the plan alternate on a 0.2-0.6 s cycle (measured), while the wheel needs about a second to
+  // cross 90 deg. Sending the wheel after every change makes it chase a decision the planner has
+  // not settled, so a materially different target is adopted only once it has been asked for
+  // continuously for steering_commit_time; until then the committed target is commanded. Small
+  // changes (within the release tolerance) track immediately, so normal steering is unaffected.
+  if (have_desired_steering && cfg_->robot.steering_commit_time > 0)
   {
-    const double latch = cfg_->robot.steering_lock_latch_angle;
-    if (std::fabs(desired_steering_angle) >= latch)
+    const double now = clock_->now().seconds();
+    const double tol = cfg_->robot.steering_lock_release_tolerance;
+    if (!committed_steering_.first)
     {
-      if (!latched_lock_.first)
-        latched_lock_ = {true, desired_steering_angle};
-      const bool same_side = (desired_steering_angle < 0.0) == (latched_lock_.second < 0.0);
-      const bool wheel_arrived = anchored_steering_angle_.first
-        && std::fabs(anchored_steering_angle_.second - latched_lock_.second) <= cfg_->robot.steering_lock_release_tolerance;
-      if (same_side || wheel_arrived)
-        latched_lock_.second = desired_steering_angle; // follow the plan on the latched side
-      else
-        desired_steering_angle = latched_lock_.second; // hold the latched side until the wheel is there
+      committed_steering_ = {true, desired_steering_angle};
+      pending_steering_ = {false, 0.0};
+      pending_since_ = 0.0;
+    }
+    else if (std::fabs(desired_steering_angle - committed_steering_.second) <= tol)
+    {
+      committed_steering_.second = desired_steering_angle; // small correction: follow it
+      pending_steering_ = {false, 0.0};
+      pending_since_ = 0.0;
     }
     else
     {
-      latched_lock_.first = false; // the plan wants to drive; release
+      // materially different target: it has to persist before the wheel is sent after it
+      if (!pending_steering_.first || std::fabs(desired_steering_angle - pending_steering_.second) > tol)
+      {
+        pending_steering_ = {true, desired_steering_angle};
+        pending_since_ = now;
+      }
+      if (now - pending_since_ >= cfg_->robot.steering_commit_time)
+      {
+        committed_steering_.second = desired_steering_angle;
+        pending_steering_ = {false, 0.0};
+        pending_since_ = 0.0;
+      }
+      else
+      {
+        desired_steering_angle = committed_steering_.second;
+      }
     }
   }
   if (have_desired_steering && cfg_->robot.steering_creep_velocity > 0

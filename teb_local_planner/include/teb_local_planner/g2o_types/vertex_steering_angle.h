@@ -179,7 +179,10 @@ inline std::pair<bool, double> steeringFromSegment(const PoseSE2& pose1, const P
   const double ds = deltaS.x() * std::cos(theta_m) + deltaS.y() * std::sin(theta_m);
 
   const double arc = wheelbase * dtheta;
-  if (std::hypot(ds, arc) < 1e-4)
+  // The implied angle is the direction of the vector (ds, arc); its sensitivity to pose noise is
+  // 1/hypot(ds, arc), so a threshold of 1e-4 m still admits segments whose angle swings by radians
+  // under micrometre-level pose noise. Reject anything below a millimetre of motion.
+  if (std::hypot(ds, arc) < 1e-3)
     return {false, 0.0};
 
   return {true, std::atan2(arc, ds)};

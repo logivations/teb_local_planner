@@ -220,6 +220,13 @@ public:
     return best ? best->getFirstSteeringAngle(phi) : false;
   }
 
+  void getSteeringDiagnostics(int& segment, double& motion, int& segments, const void*& instance) const override
+  {
+    TebOptimalPlannerPtr best = bestTeb();
+    if (best) best->getSteeringDiagnostics(segment, motion, segments, instance);
+    else {segment = -1; motion = 0.0; segments = 0; instance = nullptr;}
+  }
+
   /**
    * @brief Check whether the planned trajectory is feasible or not.
    *

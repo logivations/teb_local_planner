@@ -187,6 +187,11 @@ public:
    */
   virtual bool getFirstSteeringAngle(double& phi) const {(void)phi; return false;}
 
+  //! Diagnostics for the steering readout: which segment it came from, that segment's motion
+  //! magnitude, how many segments the trajectory has, and which planner instance answered.
+  virtual void getSteeringDiagnostics(int& segment, double& motion, int& segments, const void*& instance) const
+  {segment = -1; motion = 0.0; segments = 0; instance = nullptr;}
+
 
   /**
    * @brief Visualize planner specific stuff.

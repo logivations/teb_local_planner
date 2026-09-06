@@ -298,8 +298,45 @@ public:
   {
     if (!isSteeringStateActive() || steering_vec_.empty())
       return false;
-    phi = steering_vec_.front()->steering();
-    return true;
+
+    // Segment 0 of a dwelling trajectory carries no steering information: its poses are
+    // near-coincident, so the implied angle atan2(wheelbase*dtheta, ds) is the direction of a
+    // vector made of optimizer noise, and EdgeSteeringConsistency (ds*sin(phi) -
+    // wheelbase*dtheta*cos(phi)) is identically zero there, so the optimizer never corrects it.
+    // Commanding that value makes the wheel chase a random walk while the robot stands still.
+    // The physically meaningful target is the steering angle of the motion that is about to be
+    // executed, so walk forward to the first segment with real motion in it.
+    const int segments = std::min<int>(static_cast<int>(steering_vec_.size()), std::max(0, teb_.sizePoses() - 1));
+    for (int i = 0; i < segments; ++i)
+    {
+      const double motion = segmentMotionMagnitude(teb_.Pose(i), teb_.Pose(i+1), cfg_->robot.wheelbase);
+      if (motion >= cfg_->robot.steering_min_segment_motion)
+      {
+        phi = steering_vec_[i]->steering();
+        diag_segment_ = i; diag_motion_ = motion; diag_segments_ = segments;
+        return true;
+      }
+    }
+    diag_segment_ = -1; diag_motion_ = 0.0; diag_segments_ = segments;
+    return false; // the whole trajectory is dwelling: the caller holds the last commanded angle
+  }
+
+  void getSteeringDiagnostics(int& segment, double& motion, int& segments, const void*& instance) const override
+  {segment = diag_segment_; motion = diag_motion_; segments = diag_segments_; instance = this;}
+
+  /**
+   * @brief Magnitude of the motion a segment represents: hypot(ds, wheelbase * dtheta).
+   *
+   * This is the denominator of the implied steering angle's sensitivity, so it says directly how
+   * much information the segment carries about the steering angle.
+   */
+  static double segmentMotionMagnitude(const PoseSE2& pose1, const PoseSE2& pose2, double wheelbase)
+  {
+    const double dtheta = g2o::normalize_theta(pose2.theta() - pose1.theta());
+    const double theta_m = pose1.theta() + 0.5 * dtheta;
+    const Eigen::Vector2d delta = pose2.position() - pose1.position();
+    const double ds = delta.x() * std::cos(theta_m) + delta.y() * std::sin(theta_m);
+    return std::hypot(ds, wheelbase * dtheta);
   }
 
   //@}
@@ -856,6 +893,9 @@ protected:
   std::vector<std::pair<PoseSE2, double>> steering_prev_solution_; //!< Converged steering estimates of the previous planning cycle, each keyed by the midpoint pose of its segment
   double steering_carry_max_dist_ = 0.5; //!< [m] Maximum pose distance at which a previous estimate is carried over to a new segment
   double steering_carry_heading_weight_ = 0.5; //!< [m/rad] Weight of the heading difference in that pose distance
+  mutable int diag_segment_ = -1;   //!< Debug: segment the last steering readout came from
+  mutable double diag_motion_ = 0.0; //!< Debug: that segment's motion magnitude
+  mutable int diag_segments_ = 0;    //!< Debug: number of steering segments at that moment
   bool steering_warm_start_valid_ = false; //!< False whenever the trajectory was re-initialized/pruned since the last sync (steering_vec_ no longer maps onto the segments)
 
   bool initialized_; //!< Keeps track about the correct initialization of this class
