@@ -699,12 +699,15 @@ bool TebLocalPlannerROS::pruneGlobalPlan(const geometry_msgs::msg::PoseStamped& 
       }
       return global_plan.end();
     };
+    // With the heading check, a plan whose start lies farther than dist_behind_robot ahead of the
+    // robot (replanned from a pose ahead of it) must not be pruned by position: the first pose
+    // within reach can belong to a later leg passing beside the robot (return leg of a
+    // turn-around), and erasing up to it drops the turn-around for good. Keep the plan then;
+    // transformGlobalPlan() matches the robot to the start.
     std::vector<geometry_msgs::msg::PoseStamped>::iterator erase_end =
       find_first_close(cfg_->trajectory.global_plan_max_heading_diff);
     if (erase_end == global_plan.end())
-      erase_end = find_first_close(0);  // no pose faces like the robot: position only
-    if (erase_end == global_plan.end())
-      erase_end = global_plan.begin();  // nothing close to the robot: keep the plan
+      erase_end = global_plan.begin();  // nothing close to the robot (facing like it): keep the plan
     
     if (erase_end != global_plan.begin())
       global_plan.erase(global_plan.begin(), erase_end);
