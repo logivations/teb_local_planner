@@ -64,6 +64,22 @@ using nav2::declare_parameter_if_not_declared;
 
 namespace teb_local_planner
 {
+
+namespace
+{
+// Whether a global plan pose may be matched to the robot's position on the plan: its heading must
+// be within max_heading_diff of the robot's (disabled if <= 0). A plan that turns around (out,
+// cusp, back past the start) overlaps itself, and a pose of its return leg can lie closer to the
+// robot than the leg the robot is on; matching it skips the turn-around.
+bool headingMatches(const geometry_msgs::msg::PoseStamped& robot, const geometry_msgs::msg::PoseStamped& pose,
+                    double max_heading_diff)
+{
+  if (max_heading_diff <= 0)
+    return true;
+  double diff = std::remainder(tf2::getYaw(pose.pose.orientation) - tf2::getYaw(robot.pose.orientation), 2 * M_PI);
+  return std::fabs(diff) <= max_heading_diff;
+}
+}  // namespace
   
 
 TebLocalPlannerROS::TebLocalPlannerROS() 
@@ -671,23 +687,24 @@ bool TebLocalPlannerROS::pruneGlobalPlan(const geometry_msgs::msg::PoseStamped& 
     
     double dist_thresh_sq = dist_behind_robot*dist_behind_robot;
     
-    // iterate plan until a pose close the robot is found
-    std::vector<geometry_msgs::msg::PoseStamped>::iterator it = global_plan.begin();
-    std::vector<geometry_msgs::msg::PoseStamped>::iterator erase_end = it;
-    while (it != global_plan.end())
+    // iterate plan until a pose close the robot (and, if configured, facing like the robot) is found
+    auto find_first_close = [&](double max_heading_diff)
     {
-      double dx = robot.pose.position.x - it->pose.position.x;
-      double dy = robot.pose.position.y - it->pose.position.y;
-      double dist_sq = dx * dx + dy * dy;
-      if (dist_sq < dist_thresh_sq)
+      for (auto it = global_plan.begin(); it != global_plan.end(); ++it)
       {
-         erase_end = it;
-         break;
+        double dx = robot.pose.position.x - it->pose.position.x;
+        double dy = robot.pose.position.y - it->pose.position.y;
+        if (dx * dx + dy * dy < dist_thresh_sq && headingMatches(robot, *it, max_heading_diff))
+          return it;
       }
-      ++it;
-    }
+      return global_plan.end();
+    };
+    std::vector<geometry_msgs::msg::PoseStamped>::iterator erase_end =
+      find_first_close(cfg_->trajectory.global_plan_max_heading_diff);
     if (erase_end == global_plan.end())
-      return false;
+      erase_end = find_first_close(0);  // no pose faces like the robot: position only
+    if (erase_end == global_plan.end())
+      erase_end = global_plan.begin();  // nothing close to the robot: keep the plan
     
     if (erase_end != global_plan.begin())
       global_plan.erase(global_plan.begin(), erase_end);
@@ -751,26 +768,37 @@ bool TebLocalPlannerROS::transformGlobalPlan(const std::vector<geometry_msgs::ms
     double sq_dist = 1e10;
     
     //we need to loop to a point on the plan that is within a certain distance of the robot
-    bool robot_reached = false;
-    for(int j=0; j < (int)global_plan.size(); ++j)
+    auto find_closest = [&](double max_heading_diff)
     {
-      double x_diff = robot_pose.pose.position.x - global_plan[j].pose.position.x;
-      double y_diff = robot_pose.pose.position.y - global_plan[j].pose.position.y;
-      double new_sq_dist = x_diff * x_diff + y_diff * y_diff;
-      if (new_sq_dist > sq_dist_threshold)
-        break;  // force stop if we have reached the costmap border
-
-      if (robot_reached && new_sq_dist > sq_dist)
-        break;
-
-      if (new_sq_dist < sq_dist) // find closest distance
+      i = 0;
+      sq_dist = 1e10;
+      bool robot_reached = false;
+      for(int j=0; j < (int)global_plan.size(); ++j)
       {
-        sq_dist = new_sq_dist;
-        i = j;
-        if (sq_dist < 0.05)      // 2.5 cm to the robot; take the immediate local minima; if it's not the global
-          robot_reached = true;  // minima, probably means that there's a loop in the path, and so we prefer this
+        double x_diff = robot_pose.pose.position.x - global_plan[j].pose.position.x;
+        double y_diff = robot_pose.pose.position.y - global_plan[j].pose.position.y;
+        double new_sq_dist = x_diff * x_diff + y_diff * y_diff;
+        if (new_sq_dist > sq_dist_threshold)
+          break;  // force stop if we have reached the costmap border
+
+        if (robot_reached && new_sq_dist > sq_dist)
+          break;
+
+        if (!headingMatches(robot_pose, global_plan[j], max_heading_diff))
+          continue;  // e.g. the return leg of a turn-around passing the robot
+
+        if (new_sq_dist < sq_dist) // find closest distance
+        {
+          sq_dist = new_sq_dist;
+          i = j;
+          if (sq_dist < 0.05)      // 2.5 cm to the robot; take the immediate local minima; if it's not the global
+            robot_reached = true;  // minima, probably means that there's a loop in the path, and so we prefer this
+        }
       }
-    }
+    };
+    find_closest(cfg_->trajectory.global_plan_max_heading_diff);
+    if (sq_dist > sq_dist_threshold && cfg_->trajectory.global_plan_max_heading_diff > 0)
+      find_closest(0);  // no pose faces like the robot: position only
 
     geometry_msgs::msg::PoseStamped newer_pose;
     

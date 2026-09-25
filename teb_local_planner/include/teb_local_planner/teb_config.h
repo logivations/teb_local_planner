@@ -86,6 +86,7 @@ public:
     bool via_points_ordered; //!< If true, the planner adheres to the order of via-points in the storage container
     double max_global_plan_lookahead_dist; //!< Specify maximum length (cumulative Euclidean distances) of the subset of the global plan taken into account for optimization [if <=0: disabled; the length is also bounded by the local costmap size!]
     double global_plan_prune_distance; //!< Distance between robot and via_points of global plan which is used for pruning
+    double global_plan_max_heading_diff; //!< Max. difference [rad] between the robot heading and a global plan pose for that pose to count as the robot's position on the plan (pruning and start of the transformed plan); a plan that turns around overlaps itself, and its return leg can pass closer to the robot than the leg it is on. Falls back to position only if no pose qualifies [if <=0: disabled]
     bool exact_arc_length; //!< If true, the planner uses the exact arc length in velocity, acceleration and turning rate computations [-> increased cpu time], otherwise the euclidean approximation is used.
     double force_reinit_new_goal_dist; //!< Reinitialize the trajectory if a previous goal is updated with a seperation of more than the specified value in meters (skip hot-starting)
     double force_reinit_new_goal_angular; //!< Reinitialize the trajectory if a previous goal is updated with an angular difference of more than the specified value in radians (skip hot-starting)
@@ -266,6 +267,7 @@ public:
     trajectory.via_points_ordered = false;
     trajectory.max_global_plan_lookahead_dist = 1;
     trajectory.global_plan_prune_distance = 1;
+    trajectory.global_plan_max_heading_diff = 0;
     trajectory.exact_arc_length = false;
     trajectory.force_reinit_new_goal_dist = 1;
     trajectory.force_reinit_new_goal_angular = 0.5 * M_PI;
