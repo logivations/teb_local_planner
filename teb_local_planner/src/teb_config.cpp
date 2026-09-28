@@ -70,6 +70,7 @@ void TebConfig::declareParameters(const nav2::LifecycleNode::SharedPtr nh, const
   declare_parameter_if_not_declared(nh, name + "." + "publish_feedback", rclcpp::ParameterValue(trajectory.publish_feedback));
   declare_parameter_if_not_declared(nh, name + "." + "min_resolution_collision_check_angular", rclcpp::ParameterValue(trajectory.min_resolution_collision_check_angular));
   declare_parameter_if_not_declared(nh, name + "." + "control_look_ahead_poses", rclcpp::ParameterValue(trajectory.control_look_ahead_poses));
+  declare_parameter_if_not_declared(nh, name + "." + "control_look_ahead_stop_at_cusp", rclcpp::ParameterValue(trajectory.control_look_ahead_stop_at_cusp));
   declare_parameter_if_not_declared(nh, name + "." + "feasibility_check_lookahead_distance", rclcpp::ParameterValue(trajectory.feasibility_check_lookahead_distance));
 
   // Robot
@@ -201,6 +202,7 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2::LifecycleNode::SharedPtr 
   nh->get_parameter_or(name + "." + "publish_feedback", trajectory.publish_feedback, trajectory.publish_feedback);
   nh->get_parameter_or(name + "." + "min_resolution_collision_check_angular", trajectory.min_resolution_collision_check_angular, trajectory.min_resolution_collision_check_angular);
   nh->get_parameter_or(name + "." + "control_look_ahead_poses", trajectory.control_look_ahead_poses, trajectory.control_look_ahead_poses);
+  nh->get_parameter_or(name + "." + "control_look_ahead_stop_at_cusp", trajectory.control_look_ahead_stop_at_cusp, trajectory.control_look_ahead_stop_at_cusp);
   nh->get_parameter_or(name + "." + "feasibility_check_lookahead_distance", trajectory.feasibility_check_lookahead_distance, trajectory.feasibility_check_lookahead_distance);
 
   // Robot
@@ -695,6 +697,8 @@ rcl_interfaces::msg::SetParametersResult
         trajectory.exact_arc_length = parameter.as_bool();
       } else if (name == node_name + ".publish_feedback") {
         trajectory.publish_feedback = parameter.as_bool();
+      } else if (name == node_name + ".control_look_ahead_stop_at_cusp") {
+        trajectory.control_look_ahead_stop_at_cusp = parameter.as_bool();
       }else if (name == node_name + ".feasibility_check") {
         trajectory.feasibility_check = parameter.as_bool();
       }

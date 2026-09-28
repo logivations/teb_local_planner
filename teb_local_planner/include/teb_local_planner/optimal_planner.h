@@ -468,6 +468,13 @@ public:
    * @param[out] omega rotational velocity
    */
   inline void extractVelocity(const PoseSE2& pose1, const PoseSE2& pose2, double dt, double& vx, double& vy, double& omega) const;
+
+  /**
+   * @brief Number of look-ahead poses before the first change of the driving direction (cusp)
+   * @param look_ahead_poses Requested look-ahead (1 <= look_ahead_poses < sizePoses())
+   * @return look_ahead_poses, or the index of the pose where the direction changes
+   */
+  int lookAheadPosesBeforeCusp(int look_ahead_poses) const;
   
   /**
    * @brief Compute the velocity profile of the trajectory

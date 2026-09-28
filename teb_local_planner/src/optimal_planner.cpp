@@ -1154,6 +1154,8 @@ bool TebOptimalPlanner::getVelocityCommand(double& vx, double& vy, double& omega
     return false;
   }
   look_ahead_poses = std::max(1, std::min(look_ahead_poses, teb_.sizePoses() - 1));
+  if (cfg_->trajectory.control_look_ahead_stop_at_cusp && cfg_->robot.max_vel_y == 0)
+    look_ahead_poses = lookAheadPosesBeforeCusp(look_ahead_poses);
   double dt = 0.0;
   for(int counter = 0; counter < look_ahead_poses; ++counter)
   {
@@ -1176,6 +1178,29 @@ bool TebOptimalPlanner::getVelocityCommand(double& vx, double& vy, double& omega
   // Get velocity from the first two configurations
   extractVelocity(teb_.Pose(0), teb_.Pose(look_ahead_poses), dt, vx, vy, omega);
   return true;
+}
+
+int TebOptimalPlanner::lookAheadPosesBeforeCusp(int look_ahead_poses) const
+{
+  // The command is the chord from pose 0 to pose look_ahead_poses. If the trajectory
+  // changes its driving direction in between, the chord is the net displacement across
+  // the cusp: its sign flips with small shifts of the cusp (forward / reverse every
+  // cycle). Stop at the pose where the direction changes. Segments without a driving
+  // direction (turning on the spot) neither set nor break the direction.
+  int direction = 0;
+  for (int i = 0; i < look_ahead_poses; ++i)
+  {
+    const Eigen::Vector2d delta = teb_.Pose(i + 1).position() - teb_.Pose(i).position();
+    const double along = delta.dot(teb_.Pose(i).orientationUnitVec());
+    if (std::abs(along) < 1e-3)
+      continue;
+    const int segment_direction = along > 0 ? 1 : -1;
+    if (direction == 0)
+      direction = segment_direction;
+    else if (segment_direction != direction)
+      return i;
+  }
+  return look_ahead_poses;
 }
 
 void TebOptimalPlanner::getVelocityProfile(std::vector<geometry_msgs::msg::Twist>& velocity_profile) const
