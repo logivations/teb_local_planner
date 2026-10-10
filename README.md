@@ -16,6 +16,38 @@ This branch is the teb_local_planner package ported to ROS2(Dashing Diademata). 
 ros2 launch teb_local_planner teb_tb3_simulation_launch.py
 ```
 
+## Control latency compensation (Logivations)
+
+TEB plans every cycle from the measured pose and velocity. If the drive needs some time until a
+command shows up in the measured motion, the robot keeps executing the commands of that time while
+TEB already plans the next one. Near a goal it keeps rolling while TEB brakes, the remaining distance
+shrinks faster than planned and every cycle asks for a harder deceleration than `acc_lim_x` (a soft
+constraint), so the robot reaches the goal fast or overshoots and oscillates around it.
+
+With `control_latency_s > 0` TEB keeps the commands it sent and plans from the state predicted for
+the moment the new command takes effect (`ControlLatencyPredictor`, a Smith predictor with a dead-time
+model): the measured pose is integrated over `control_latency_s` with the commands of the last
+`control_latency_s`, and the newest command is the start velocity of the plan. The predicted pose
+is used for everything inside TEB (plan matching, via-points, obstacles, the plan start); the goal and
+progress checkers of the controller server keep using the measured pose.
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `control_latency_s` | 0.0 | delay [s] from a command to the measured motion (traction and pose); 0 disables the compensation |
+| `steering_latency_s` | 0.0 | car-like steering model: dead time [s] from a command to the wheel angle |
+| `steering_rate_limit` | 0.0 | car-like steering model: max. wheel angle rate [rad/s], 0 = unlimited |
+| `control_latency_max_velocity_error` | 0.3 | if the measured speed differs from the command sent `control_latency_s` ago by more than this [m/s], the prediction is skipped for that cycle |
+
+The steering model (tricycle, `omega = v * tan(delta) / wheelbase`) is active when `wheelbase > 0`
+and `steering_latency_s` or `steering_rate_limit` is set: the wheel angle follows the commanded one
+with the dead time and the rate limit, and the predicted turn rate follows the wheel. Without it the
+predicted turn rate keeps the commanded curvature.
+
+The prediction is skipped (measured state, as without compensation) when no command was sent within
+the last 0.5 s (controller idle, another controller drove), after `reset()`, and when the robot does
+not follow the commands (collision monitor stop, speed limits downstream of TEB, traction stuck), see
+`control_latency_max_velocity_error`.
+
 ## Citing the Software
 
 *Since a lot of time and effort has gone into the development, please cite at least one of the following publications if you are using the planner for your own research:*

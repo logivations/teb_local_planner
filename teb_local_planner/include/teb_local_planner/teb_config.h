@@ -120,6 +120,12 @@ public:
     bool is_footprint_dynamic; //<! If true, updated the footprint before checking trajectory feasibility
     bool use_proportional_saturation; //<! If true, reduce all twists components (linear x and y, and angular z) proportionally if any exceed its corresponding bounds, instead of saturating each one individually
     double transform_tolerance = 0.5; //<! Tolerance when querying the TF Tree for a transformation (seconds)
+    // Control latency compensation (see ControlLatencyPredictor): plan from the state predicted for the moment the
+    // next command takes effect instead of the measured one.
+    double control_latency_s; //!< Time [s] from a command to the measured motion (traction and pose); 0 = off (default)
+    double steering_latency_s; //!< Dead time [s] from a command to the wheel angle (car-like steering model, needs wheelbase); 0 = off
+    double steering_rate_limit; //!< Max. wheel angle rate [rad/s] of the steering model (needs wheelbase); 0 = unlimited
+    double control_latency_max_velocity_error; //!< Measured speed deviating more than this [m/s] from the command one latency ago disables the prediction for that cycle
   } robot; //!< Robot related parameters
 
   //! Goal tolerance related parameters
@@ -298,6 +304,10 @@ public:
     robot.cmd_angle_instead_rotvel = false;
     robot.is_footprint_dynamic = false;
     robot.use_proportional_saturation = false;
+    robot.control_latency_s = 0.0;
+    robot.steering_latency_s = 0.0;
+    robot.steering_rate_limit = 0.0;
+    robot.control_latency_max_velocity_error = 0.3;
 
     // GoalTolerance
 
