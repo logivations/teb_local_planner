@@ -419,7 +419,11 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
   {
     bool use_measured = false;
     double steering_angle = 0.0;
-    if (!cfg_->robot.steering_angle_topic.empty())
+    // While TEB drives, the measured angle lags its commands by the actuator dead time: anchor at
+    // the last commanded angle instead (measured_steering_idle_time > 0).
+    const bool teb_driving = cfg_->robot.measured_steering_idle_time > 0.0 && last_cmd_steering_angle_.first &&
+      last_moving_cmd_time_ >= 0.0 && now.seconds() - last_moving_cmd_time_ <= cfg_->robot.measured_steering_idle_time;
+    if (!cfg_->robot.steering_angle_topic.empty() && !teb_driving)
     {
       std::lock_guard<std::mutex> steering_lock(steering_meas_mutex_);
       if (!measured_steering_valid_)
@@ -574,6 +578,8 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
   // stop command keeps the previous estimate, since the wheel stays where it was parked.
   if (cfg_->robot.steering_state_enabled)
   {
+    if (cmd_vel.twist.linear.x != 0 || cmd_vel.twist.angular.z != 0)
+      last_moving_cmd_time_ = now.seconds();
     if (cmd_vel.twist.linear.x == 0 && cmd_vel.twist.angular.z != 0)
       last_cmd_steering_angle_ = {true, cmd_vel.twist.angular.z > 0 ? M_PI_2 : -M_PI_2};
     else if (cmd_vel.twist.linear.x != 0)
@@ -1360,6 +1366,7 @@ void TebLocalPlannerROS::cleanup() {
 void TebLocalPlannerROS::reset() {
   planner_->clearPlanner();
   latency_predictor_.reset();
+  last_moving_cmd_time_ = -1.0;  // the next goal starts anchored at the measured wheel angle
   return;
 }
 

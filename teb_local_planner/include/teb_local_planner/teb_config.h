@@ -124,6 +124,7 @@ public:
     std::string steering_angle_topic; //!< Topic providing the measured steering angle as sensor_msgs/JointState (empty: fall back to the steering angle implied by the last velocity command; only in use if steering_state_enabled)
     std::string steering_joint_name; //!< Name of the steering joint within the JointState message (empty: use the first entry)
     double measured_steering_max_age; //!< Maximum age [s] of the measured steering angle before falling back to the last commanded steering angle
+    double measured_steering_idle_time; //!< If > 0, anchor the steering state at the measured wheel angle only while TEB is idle, i.e. sent no moving command within this time [s] (goal start, after other controllers or behaviors moved the wheel); while TEB drives, anchor at the angle of its last command. On a drive with dead time the measured angle lags the command and anchoring at it lets every cycle re-plan from a wheel the actuator has already left. 0 = always the measured angle
     std::string desired_steering_angle_topic; //!< Topic on which the optimized steering angle of the first trajectory segment is published as std_msgs/Float64 (introspection; the command interface remains cmd_vel with the steering_creep_velocity encoding). Only published while the steering state is active (empty: disabled)
     double steering_creep_velocity; //!< Minimum magnitude [m/s] of the published translational velocity while the steering state is active: commands below it are replaced by a creep command whose omega/v ratio implies the planned steering angle, so the wheel keeps rotating toward its planned angle through the plain (v, omega) interface even when the robot should effectively stand still (<=0 disables)
     bool is_footprint_dynamic; //<! If true, updated the footprint before checking trajectory feasibility
@@ -326,6 +327,7 @@ public:
     robot.steering_angle_topic = "";
     robot.steering_joint_name = "steering_joint";
     robot.measured_steering_max_age = 0.5;
+    robot.measured_steering_idle_time = 0.0;
     robot.desired_steering_angle_topic = "desired_steering_angle";
     robot.steering_creep_velocity = 0.001;
     robot.is_footprint_dynamic = false;
