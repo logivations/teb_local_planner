@@ -94,6 +94,10 @@ void TebConfig::declareParameters(const nav2::LifecycleNode::SharedPtr nh, const
   declare_parameter_if_not_declared(nh, name + "." + "desired_steering_angle_topic", rclcpp::ParameterValue(robot.desired_steering_angle_topic));
   declare_parameter_if_not_declared(nh, name + "." + "steering_creep_velocity", rclcpp::ParameterValue(robot.steering_creep_velocity));
   declare_parameter_if_not_declared(nh, name + "." + "is_footprint_dynamic", rclcpp::ParameterValue(robot.is_footprint_dynamic));
+  declare_parameter_if_not_declared(nh, name + "." + "control_latency_s", rclcpp::ParameterValue(robot.control_latency_s));
+  declare_parameter_if_not_declared(nh, name + "." + "steering_latency_s", rclcpp::ParameterValue(robot.steering_latency_s));
+  declare_parameter_if_not_declared(nh, name + "." + "steering_rate_limit", rclcpp::ParameterValue(robot.steering_rate_limit));
+  declare_parameter_if_not_declared(nh, name + "." + "control_latency_max_velocity_error", rclcpp::ParameterValue(robot.control_latency_max_velocity_error));
 
   // GoalTolerance
   declare_parameter_if_not_declared(nh, name + "." + "free_goal_vel", rclcpp::ParameterValue(goal_tolerance.free_goal_vel));
@@ -246,6 +250,10 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2::LifecycleNode::SharedPtr 
   nh->get_parameter_or(name + "." + "desired_steering_angle_topic", robot.desired_steering_angle_topic, robot.desired_steering_angle_topic);
   nh->get_parameter_or(name + "." + "steering_creep_velocity", robot.steering_creep_velocity, robot.steering_creep_velocity);
   nh->get_parameter_or(name + "." + "is_footprint_dynamic", robot.is_footprint_dynamic, robot.is_footprint_dynamic);
+  nh->get_parameter_or(name + "." + "control_latency_s", robot.control_latency_s, robot.control_latency_s);
+  nh->get_parameter_or(name + "." + "steering_latency_s", robot.steering_latency_s, robot.steering_latency_s);
+  nh->get_parameter_or(name + "." + "steering_rate_limit", robot.steering_rate_limit, robot.steering_rate_limit);
+  nh->get_parameter_or(name + "." + "control_latency_max_velocity_error", robot.control_latency_max_velocity_error, robot.control_latency_max_velocity_error);
   
   // GoalTolerance
   nh->get_parameter_or(name + "." + "free_goal_vel", goal_tolerance.free_goal_vel, goal_tolerance.free_goal_vel);
@@ -548,6 +556,14 @@ rcl_interfaces::msg::SetParametersResult
         robot.max_steering_rate = parameter.as_double();
       } else if (name == node_name + ".measured_steering_max_age") {
         robot.measured_steering_max_age = parameter.as_double();
+      } else if (name == node_name + ".control_latency_s") {
+        robot.control_latency_s = parameter.as_double();
+      } else if (name == node_name + ".steering_latency_s") {
+        robot.steering_latency_s = parameter.as_double();
+      } else if (name == node_name + ".steering_rate_limit") {
+        robot.steering_rate_limit = parameter.as_double();
+      } else if (name == node_name + ".control_latency_max_velocity_error") {
+        robot.control_latency_max_velocity_error = parameter.as_double();
       }
       // GoalTolerance
       else if (name == node_name + ".max_adjust_goal_y") {
@@ -924,6 +940,9 @@ void TebConfig::checkParameters() const
   if (robot.cmd_angle_instead_rotvel && robot.wheelbase==0)
     RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: parameter cmd_angle_instead_rotvel is non-zero but wheelbase is set to zero: undesired behavior.");
   
+  if ((robot.steering_latency_s > 0 || robot.steering_rate_limit > 0) && (robot.control_latency_s <= 0 || robot.wheelbase <= 0))
+    RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: steering_latency_s / steering_rate_limit need control_latency_s > 0 and wheelbase > 0, the steering model is off.");
+
   if (robot.cmd_angle_instead_rotvel && robot.min_turning_radius==0)
     RCLCPP_WARN(logger_, "TebLocalPlannerROS() Param Warning: parameter cmd_angle_instead_rotvel is non-zero but min_turning_radius is set to zero: undesired behavior. You are mixing a carlike and a diffdrive robot");
 

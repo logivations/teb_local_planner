@@ -27,6 +27,13 @@ controller_server:
       max_vel_theta: 1.0 
       acc_lim_x: 2.5
       acc_lim_theta: 3.2
+      # Control latency compensation (0 = off): plan from the state predicted for the moment the
+      # command takes effect. control_latency_s = delay command -> measured motion; the steering
+      # model (car-like, needs wheelbase) adds a wheel-angle dead time and rate limit.
+      control_latency_s: 0.0
+      steering_latency_s: 0.0
+      steering_rate_limit: 0.0
+      control_latency_max_velocity_error: 0.3
 
       footprint_model: # types: "point", "circular", "two_circles", "line", "polygon"
         type: "circular"

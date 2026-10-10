@@ -51,6 +51,7 @@
 #include "teb_local_planner/homotopy_class_planner.h"
 #include "teb_local_planner/visualization.h"
 #include "teb_local_planner/recovery_behaviors.h"
+#include "teb_local_planner/control_latency_predictor.h"
 
 // message types
 #include <nav_msgs/msg/path.hpp>
@@ -359,6 +360,11 @@ protected:
    * @param min_obst_dist desired distance to obstacles
    */
   void validateFootprints(double opt_inscribed_radius, double costmap_inscribed_radius, double min_obst_dist);
+
+  /**
+   * @brief Copy the control latency parameters (dynamic) from the config into the predictor.
+   */
+  void updateLatencyPredictorParams();
   
   
   void configureBackupModes(std::vector<geometry_msgs::msg::PoseStamped>& transformed_plan,  int& goal_idx);
@@ -422,6 +428,7 @@ private:
   rclcpp::Time time_last_oscillation_; //!< Store at which time stamp the last oscillation was detected
   RotType last_preferred_rotdir_; //!< Store recent preferred turning direction
   geometry_msgs::msg::Twist last_cmd_; //!< Store the last control command generated in computeVelocityCommands()
+  ControlLatencyPredictor latency_predictor_; //!< Predicts the start state of the plan over the control latency
   
   std::vector<geometry_msgs::msg::Point> footprint_spec_; //!< Store the footprint of the robot 
   double robot_inscribed_radius_; //!< The radius of the inscribed circle of the robot (collision possible)

@@ -83,6 +83,7 @@ add_library(teb_local_planner SHARED
    src/homotopy_class_planner.cpp
    src/teb_local_planner_ros.cpp
    src/graph_search.cpp
+   src/control_latency_predictor.cpp
 )
 
 set(ament_dependencies
@@ -153,8 +154,12 @@ pluginlib_export_plugin_description_file(nav2_core teb_local_planner_plugin.xml)
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
-  # linked into steering_state_test: a transitively included header inlines fmt symbols
+  # linked into steering_state_test and control_latency_test: a transitively included header
+  # (nav2_ros_common) inlines fmt symbols
   find_package(fmt REQUIRED)
+  ament_add_gtest(control_latency_test test/control_latency_test.cpp TIMEOUT 120)
+  target_link_libraries(control_latency_test teb_local_planner ${EXTERNAL_LIBS} fmt::fmt)
+  ament_target_dependencies(control_latency_test ${ament_dependencies})
   #ament_add_gtest(homotopy_class_planner_test
   #    test/homotopy_class_planner_test.cpp
   #)
