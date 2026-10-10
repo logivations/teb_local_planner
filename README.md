@@ -24,16 +24,29 @@ TEB already plans the next one. Near a goal it keeps rolling while TEB brakes, t
 shrinks faster than planned and every cycle asks for a harder deceleration than `acc_lim_x` (a soft
 constraint), so the robot reaches the goal fast or overshoots and oscillates around it.
 
-With `control_latency_s > 0` TEB keeps the commands it sent and plans from the state predicted for
-the moment the new command takes effect (`ControlLatencyPredictor`, a Smith predictor with a dead-time
-model): the measured pose is integrated over `control_latency_s` with the commands of the last
-`control_latency_s`, and the newest command is the start velocity of the plan. The predicted pose
-is used for everything inside TEB (plan matching, via-points, obstacles, the plan start); the goal and
-progress checkers of the controller server keep using the measured pose.
+With `control_latency_s > 0` TEB keeps the commands the drive received and plans from the state
+predicted for the moment the new command takes effect (`ControlLatencyPredictor`, a Smith predictor
+with a dead-time model): the measured pose is integrated over `control_latency_s` with the commands
+of the last `control_latency_s`. With `control_lag_s = 0` the newest command is the start velocity
+of the plan; with `control_lag_s > 0` the speed follows the commands with that first-order lag after
+the dead time, starting from the measured speed, and the plan starts with the speed the model reaches.
+The predicted pose is used for everything inside TEB (plan matching, via-points, obstacles, the plan
+start); the goal and progress checkers of the controller server keep using the measured pose.
+
+Which commands: set `control_latency_executed_cmd_topic` to the TwistStamped topic the drive gets
+(after the smoother / collision monitor and every other filter between TEB and the drive). Without
+it TEB predicts with its own commands, which is only right if nothing downstream changes them: when
+the downstream zeroes or caps them, the prediction runs away from the robot and TEB's own last
+command becomes its next start velocity (amr47 2026-10-10: plan start up to 12 cm off the standing
+robot, TEB flipping forward/reverse every cycle, wheel demand -86 <-> +89 deg, 17 s without traction;
+while driving 4x larger command steps).
 
 | Parameter | Default | Meaning |
 |---|---|---|
-| `control_latency_s` | 0.0 | delay [s] from a command to the measured motion (traction and pose); 0 disables the compensation |
+| `control_latency_s` | 0.0 | dead time [s] from a command to the drive's reaction (with `control_lag_s` 0: to the measured motion); 0 disables the compensation |
+| `control_lag_s` | 0.0 | time constant [s] of the drive's first-order speed response after the dead time; 0 = pure dead time |
+| `control_latency_executed_cmd_topic` | "" | TwistStamped topic of the commands the drive executes; empty = TEB's own commands. Read at startup |
+| `control_latency_min_speed` | 0.05 | no prediction while the measured speed and the newest command are below this [m/s] |
 | `steering_latency_s` | 0.0 | car-like steering model: dead time [s] from a command to the wheel angle |
 | `steering_rate_limit` | 0.0 | car-like steering model: max. wheel angle rate [rad/s], 0 = unlimited |
 | `control_latency_max_velocity_error` | 0.3 | if the measured speed differs from the command sent `control_latency_s` ago by more than this [m/s], the prediction is skipped for that cycle |
@@ -44,9 +57,11 @@ with the dead time and the rate limit, and the predicted turn rate follows the w
 predicted turn rate keeps the commanded curvature.
 
 The prediction is skipped (measured state, as without compensation) when no command was sent within
-the last 0.5 s (controller idle, another controller drove), after `reset()`, and when the robot does
+the last 0.5 s (controller idle, another controller drove), after `reset()`, when the robot does
 not follow the commands (collision monitor stop, speed limits downstream of TEB, traction stuck), see
-`control_latency_max_velocity_error`.
+`control_latency_max_velocity_error`, at standstill (`control_latency_min_speed`), and, with a
+wheelbase, when the commands or the measured motion of the window change between forward and reverse
+at a wheel angle beyond 45 deg (the wheel turns to the other side before the drive moves).
 
 ## Citing the Software
 

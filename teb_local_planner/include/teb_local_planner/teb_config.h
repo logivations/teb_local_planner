@@ -126,6 +126,9 @@ public:
     double steering_latency_s; //!< Dead time [s] from a command to the wheel angle (car-like steering model, needs wheelbase); 0 = off
     double steering_rate_limit; //!< Max. wheel angle rate [rad/s] of the steering model (needs wheelbase); 0 = unlimited
     double control_latency_max_velocity_error; //!< Measured speed deviating more than this [m/s] from the command one latency ago disables the prediction for that cycle
+    double control_latency_min_speed; //!< Measured speed and newest executed command below this [m/s]: no prediction (standstill)
+    double control_lag_s; //!< Time constant [s] of the drive's first-order speed response after control_latency_s (dead time); 0 = pure dead time
+    std::string control_latency_executed_cmd_topic; //!< TwistStamped topic of the commands the drive executes (after smoother / collision monitor); empty = predict with TEB's own commands. Read at startup.
   } robot; //!< Robot related parameters
 
   //! Goal tolerance related parameters
@@ -308,6 +311,9 @@ public:
     robot.steering_latency_s = 0.0;
     robot.steering_rate_limit = 0.0;
     robot.control_latency_max_velocity_error = 0.3;
+    robot.control_latency_min_speed = 0.05;
+    robot.control_lag_s = 0.0;
+    robot.control_latency_executed_cmd_topic = "";
 
     // GoalTolerance
 
