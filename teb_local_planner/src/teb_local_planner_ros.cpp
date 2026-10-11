@@ -604,6 +604,21 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
       cmd_vel.twist.angular.z = omega_encode;
   }
 
+  // Near lock and at low speed the sign of v decides the wheel side (the tricycle drive maps
+  // (v, omega) to atan(wheelbase * omega / v)), but the first segment's translation is then tiny
+  // and its sign is noise: the same turn on the spot is +90 deg with v < 0 or -90 deg with v > 0,
+  // and every sign flip throws the wheel lock to lock (amr47 2026-10-11 17:23). Take the side
+  // from the planned wheel angle instead.
+  if (have_desired_steering && cfg_->robot.steering_side_hold_velocity > 0.0 &&
+      std::fabs(desired_steering_angle) >= cfg_->robot.steering_side_hold_angle &&
+      std::fabs(cmd_vel.twist.linear.x) < cfg_->robot.steering_side_hold_velocity &&
+      std::fabs(cmd_vel.twist.angular.z) > 1e-3)
+  {
+    const double side_sign = (desired_steering_angle > 0.0) == (cmd_vel.twist.angular.z > 0.0) ? 1.0 : -1.0;
+    cmd_vel.twist.linear.x = side_sign * std::max(std::fabs(cmd_vel.twist.linear.x),
+                                                  cfg_->robot.steering_side_hold_min_velocity);
+  }
+
   // Remember the wheel angle implied by this command (bicycle model, before the optional
   // cmd_angle_instead_rotvel conversion rewrites angular.z into a steering angle): it anchors the
   // steering state in the next cycle when no fresh measured steering angle is available. A pure

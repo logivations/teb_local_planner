@@ -124,6 +124,9 @@ public:
     std::string steering_angle_topic; //!< Topic providing the measured steering angle as sensor_msgs/JointState (empty: fall back to the steering angle implied by the last velocity command; only in use if steering_state_enabled)
     std::string steering_joint_name; //!< Name of the steering joint within the JointState message (empty: use the first entry)
     double measured_steering_max_age; //!< Maximum age [s] of the measured steering angle before falling back to the last commanded steering angle
+    double steering_side_hold_velocity; //!< Below this |v| [m/s] with the planned first wheel angle near lock (|phi| >= steering_side_hold_angle), the sign of v follows the planned wheel side (sign(phi)*sign(omega)) instead of the sign of the first segment's tiny translation, and |v| is raised to steering_side_hold_min_velocity so the drive keeps that side; 0 = off
+    double steering_side_hold_angle; //!< [rad] planned |phi| from which steering_side_hold_velocity applies
+    double steering_side_hold_min_velocity; //!< [m/s] minimum |v| of a side-held command (above the velocity smoother deadband)
     double commanded_steering_max_deviation; //!< While TEB drives (measured_steering_idle_time), the commanded-angle anchor is clamped to the measured angle +- this [rad], e.g. wheel rate * dead time; 0 = unbounded
     double measured_steering_idle_time; //!< If > 0, anchor the steering state at the measured wheel angle only while TEB is idle, i.e. sent no moving command within this time [s] (goal start, after other controllers or behaviors moved the wheel); while TEB drives, anchor at the angle of its last command. On a drive with dead time the measured angle lags the command and anchoring at it lets every cycle re-plan from a wheel the actuator has already left. 0 = always the measured angle
     std::string desired_steering_angle_topic; //!< Topic on which the optimized steering angle of the first trajectory segment is published as std_msgs/Float64 (introspection; the command interface remains cmd_vel with the steering_creep_velocity encoding). Only published while the steering state is active (empty: disabled)
@@ -333,6 +336,9 @@ public:
     robot.measured_steering_max_age = 0.5;
     robot.measured_steering_idle_time = 0.0;
     robot.commanded_steering_max_deviation = 0.0;
+    robot.steering_side_hold_velocity = 0.0;
+    robot.steering_side_hold_angle = 1.0;
+    robot.steering_side_hold_min_velocity = 0.01;
     robot.desired_steering_angle_topic = "desired_steering_angle";
     robot.steering_creep_velocity = 0.001;
     robot.is_footprint_dynamic = false;
