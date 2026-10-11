@@ -31,9 +31,16 @@ controller_server:
       # command takes effect. control_latency_s = delay command -> measured motion; the steering
       # model (car-like, needs wheelbase) adds a wheel-angle dead time and rate limit.
       control_latency_s: 0.0
+      # first-order lag [s] of the drive after the dead time control_latency_s (0 = pure dead time)
+      control_lag_s: 0.0
       steering_latency_s: 0.0
       steering_rate_limit: 0.0
       control_latency_max_velocity_error: 0.3
+      # no prediction while measured speed and newest executed command are below this [m/s]
+      control_latency_min_speed: 0.05
+      # TwistStamped topic of the commands the drive executes (after smoother / collision monitor);
+      # empty = predict with TEB's own commands (only right if nothing downstream changes them)
+      control_latency_executed_cmd_topic: ""
 
       footprint_model: # types: "point", "circular", "two_circles", "line", "polygon"
         type: "circular"

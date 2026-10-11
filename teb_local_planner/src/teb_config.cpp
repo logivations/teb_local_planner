@@ -100,6 +100,9 @@ void TebConfig::declareParameters(const nav2::LifecycleNode::SharedPtr nh, const
   declare_parameter_if_not_declared(nh, name + "." + "steering_latency_s", rclcpp::ParameterValue(robot.steering_latency_s));
   declare_parameter_if_not_declared(nh, name + "." + "steering_rate_limit", rclcpp::ParameterValue(robot.steering_rate_limit));
   declare_parameter_if_not_declared(nh, name + "." + "control_latency_max_velocity_error", rclcpp::ParameterValue(robot.control_latency_max_velocity_error));
+  declare_parameter_if_not_declared(nh, name + "." + "control_latency_min_speed", rclcpp::ParameterValue(robot.control_latency_min_speed));
+  declare_parameter_if_not_declared(nh, name + "." + "control_lag_s", rclcpp::ParameterValue(robot.control_lag_s));
+  declare_parameter_if_not_declared(nh, name + "." + "control_latency_executed_cmd_topic", rclcpp::ParameterValue(robot.control_latency_executed_cmd_topic));
 
   // GoalTolerance
   declare_parameter_if_not_declared(nh, name + "." + "free_goal_vel", rclcpp::ParameterValue(goal_tolerance.free_goal_vel));
@@ -258,6 +261,9 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2::LifecycleNode::SharedPtr 
   nh->get_parameter_or(name + "." + "steering_latency_s", robot.steering_latency_s, robot.steering_latency_s);
   nh->get_parameter_or(name + "." + "steering_rate_limit", robot.steering_rate_limit, robot.steering_rate_limit);
   nh->get_parameter_or(name + "." + "control_latency_max_velocity_error", robot.control_latency_max_velocity_error, robot.control_latency_max_velocity_error);
+  nh->get_parameter_or(name + "." + "control_latency_min_speed", robot.control_latency_min_speed, robot.control_latency_min_speed);
+  nh->get_parameter_or(name + "." + "control_lag_s", robot.control_lag_s, robot.control_lag_s);
+  nh->get_parameter_or(name + "." + "control_latency_executed_cmd_topic", robot.control_latency_executed_cmd_topic, robot.control_latency_executed_cmd_topic);
   
   // GoalTolerance
   nh->get_parameter_or(name + "." + "free_goal_vel", goal_tolerance.free_goal_vel, goal_tolerance.free_goal_vel);
@@ -572,6 +578,10 @@ rcl_interfaces::msg::SetParametersResult
         robot.steering_rate_limit = parameter.as_double();
       } else if (name == node_name + ".control_latency_max_velocity_error") {
         robot.control_latency_max_velocity_error = parameter.as_double();
+      } else if (name == node_name + ".control_latency_min_speed") {
+        robot.control_latency_min_speed = parameter.as_double();
+      } else if (name == node_name + ".control_lag_s") {
+        robot.control_lag_s = parameter.as_double();
       }
       // GoalTolerance
       else if (name == node_name + ".max_adjust_goal_y") {

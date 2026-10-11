@@ -211,6 +211,19 @@ void TebLocalPlannerROS::initialize(nav2::LifecycleNode::SharedPtr node)
       RCLCPP_INFO(logger_, "Publishing the desired steering angle on '%s'.",
                   cfg_->robot.desired_steering_angle_topic.c_str());
     }
+    
+    // control latency compensation: predict with the commands the drive executes (after the
+    // flickering protection, smoother and collision monitor), not with TEB's own ones
+    if (!cfg_->robot.control_latency_executed_cmd_topic.empty())
+    {
+      rclcpp::SubscriptionOptions executed_cmd_options;
+      executed_cmd_options.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
+      executed_cmd_sub_ = rclcpp::create_subscription<geometry_msgs::msg::TwistStamped>(
+          node, cfg_->robot.control_latency_executed_cmd_topic, rclcpp::SystemDefaultsQoS(),
+          std::bind(&TebLocalPlannerROS::executedCmdCB, this, std::placeholders::_1), executed_cmd_options);
+      RCLCPP_INFO(logger_, "Control latency compensation predicts with the executed commands on %s.",
+                  executed_cmd_sub_->get_topic_name());
+    }
 
     // initialize failure detector
     //rclcpp::Node::SharedPtr nh_move_base("~");
@@ -324,22 +337,26 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
   // ControlLatencyPredictor). Everything in TEB below uses it; the goal and progress checkers of the
   // controller server keep using the measured pose.
   const rclcpp::Time now = cmd_vel.header.stamp;
-  updateLatencyPredictorParams();
-  if (latency_predictor_.enabled())
   {
-    const ControlLatencyPredictor::State measured{robot_pose_.x(), robot_pose_.y(), robot_pose_.theta(),
-                                                  velocity.linear.x, velocity.angular.z};
-    ControlLatencyPredictor::State predicted;
-    if (latency_predictor_.predict(now.seconds(), measured, predicted))
+    std::lock_guard<std::mutex> lock(latency_predictor_mutex_);
+    updateLatencyPredictorParams();
+    if (latency_predictor_.enabled())
     {
-      robot_pose_ = PoseSE2(predicted.x, predicted.y, predicted.theta);
-      robot_pose_.toPoseMsg(robot_pose.pose);
-      robot_vel_.linear.x = predicted.v;
-      robot_vel_.angular.z = predicted.omega;
-    }
-    else
-    {
-      RCLCPP_DEBUG(logger_, "Control latency compensation skipped this cycle, planning from the measured state.");
+      const ControlLatencyPredictor::State measured{robot_pose_.x(), robot_pose_.y(), robot_pose_.theta(),
+                                                    velocity.linear.x, velocity.angular.z};
+      ControlLatencyPredictor::State predicted;
+      if (latency_predictor_.predict(now.seconds(), measured, predicted))
+      {
+        robot_pose_ = PoseSE2(predicted.x, predicted.y, predicted.theta);
+        robot_pose_.toPoseMsg(robot_pose.pose);
+        robot_vel_.linear.x = predicted.v;
+        robot_vel_.angular.z = predicted.omega;
+      }
+      else
+      {
+        RCLCPP_DEBUG(logger_, "Control latency compensation skipped this cycle (%s), planning from the measured state.",
+                     latency_predictor_.skipReason());
+      }
     }
   }
   
@@ -480,7 +497,7 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
     ++no_infeasible_plans_; // increase number of infeasible solutions in a row
     time_last_infeasible_plan_ = clock_->now();
     last_cmd_ = cmd_vel.twist;
-    latency_predictor_.addCommand(now.seconds(), 0.0, 0.0);
+    rememberOwnCommand(now.seconds(), 0.0, 0.0);
 
     throw nav2_core::NoValidControl(
       std::string("teb_local_planner was not able to obtain a local plan for the current setting.")
@@ -502,7 +519,7 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
     ++no_infeasible_plans_; // increase number of infeasible solutions in a row
     time_last_infeasible_plan_ = clock_->now();
     last_cmd_ = cmd_vel.twist;
-    latency_predictor_.addCommand(now.seconds(), 0.0, 0.0);
+    rememberOwnCommand(now.seconds(), 0.0, 0.0);
     throw nav2_core::NoValidControl(
       std::string("TebLocalPlannerROS: velocity command invalid (hasDiverged). Resetting planner...")
     );
@@ -547,7 +564,7 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
     ++no_infeasible_plans_; // increase number of infeasible solutions in a row
     time_last_infeasible_plan_ = clock_->now();
     last_cmd_ = cmd_vel.twist;
-    latency_predictor_.addCommand(now.seconds(), 0.0, 0.0);
+    rememberOwnCommand(now.seconds(), 0.0, 0.0);
 
     throw nav2_core::NoValidControl(
       std::string("TebLocalPlannerROS: velocity command invalid. Resetting planner...")
@@ -611,7 +628,7 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
   }
 
   // remember the command (as twist) for the latency compensation of the next cycles
-  latency_predictor_.addCommand(now.seconds(), cmd_vel.twist.linear.x, cmd_vel.twist.angular.z);
+  rememberOwnCommand(now.seconds(), cmd_vel.twist.linear.x, cmd_vel.twist.angular.z);
 
   // convert rot-vel to steering angle if desired (carlike robot).
   // The min_turning_radius is allowed to be slighly smaller since it is a soft-constraint
@@ -623,7 +640,7 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
     {
       cmd_vel.twist.linear.x = cmd_vel.twist.linear.y = cmd_vel.twist.angular.z = 0;
       last_cmd_ = cmd_vel.twist;
-      latency_predictor_.addCommand(now.seconds(), 0.0, 0.0);
+      rememberOwnCommand(now.seconds(), 0.0, 0.0);
       planner_->clearPlanner();
 
       ++no_infeasible_plans_; // increase number of infeasible solutions in a row
@@ -1373,13 +1390,15 @@ void TebLocalPlannerROS::deactivate() {
 void TebLocalPlannerROS::cleanup() {
   visualization_->on_cleanup();
   desired_steering_pub_.reset();
-  costmap_converter_->stopWorker();
+  if (costmap_converter_)
+    costmap_converter_->stopWorker();
 
   return;
 }
 
 void TebLocalPlannerROS::reset() {
   planner_->clearPlanner();
+  std::lock_guard<std::mutex> lock(latency_predictor_mutex_);
   latency_predictor_.reset();
   last_moving_cmd_time_ = -1.0;  // the next goal starts anchored at the measured wheel angle
   return;
@@ -1393,7 +1412,25 @@ void TebLocalPlannerROS::updateLatencyPredictorParams()
   params.steering_rate_limit = std::max(0.0, cfg_->robot.steering_rate_limit);
   params.wheelbase = cfg_->robot.wheelbase;
   params.max_velocity_error = cfg_->robot.control_latency_max_velocity_error;
+  params.min_speed = std::max(0.0, cfg_->robot.control_latency_min_speed);
+  params.lag = std::max(0.0, cfg_->robot.control_lag_s);
   latency_predictor_.setParams(params);
+}
+
+void TebLocalPlannerROS::rememberOwnCommand(double t, double v, double omega)
+{
+  if (executed_cmd_sub_)
+    return;  // the predictor gets the commands the drive executes
+  std::lock_guard<std::mutex> lock(latency_predictor_mutex_);
+  latency_predictor_.addCommand(t, v, omega);
+}
+
+void TebLocalPlannerROS::executedCmdCB(const geometry_msgs::msg::TwistStamped::ConstSharedPtr msg)
+{
+  // receive time: the predictor compares it with the controller clock (cmd_vel stamp) of the cycle
+  const double t = clock_->now().seconds();
+  std::lock_guard<std::mutex> lock(latency_predictor_mutex_);
+  latency_predictor_.addCommand(t, msg->twist.linear.x, msg->twist.angular.z);
 }
 
 } // end namespace teb_local_planner
