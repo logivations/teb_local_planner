@@ -92,6 +92,7 @@ void TebConfig::declareParameters(const nav2::LifecycleNode::SharedPtr nh, const
   declare_parameter_if_not_declared(nh, name + "." + "steering_joint_name", rclcpp::ParameterValue(robot.steering_joint_name));
   declare_parameter_if_not_declared(nh, name + "." + "measured_steering_max_age", rclcpp::ParameterValue(robot.measured_steering_max_age));
   declare_parameter_if_not_declared(nh, name + "." + "measured_steering_idle_time", rclcpp::ParameterValue(robot.measured_steering_idle_time));
+  declare_parameter_if_not_declared(nh, name + "." + "commanded_steering_max_deviation", rclcpp::ParameterValue(robot.commanded_steering_max_deviation));
   declare_parameter_if_not_declared(nh, name + "." + "desired_steering_angle_topic", rclcpp::ParameterValue(robot.desired_steering_angle_topic));
   declare_parameter_if_not_declared(nh, name + "." + "steering_creep_velocity", rclcpp::ParameterValue(robot.steering_creep_velocity));
   declare_parameter_if_not_declared(nh, name + "." + "is_footprint_dynamic", rclcpp::ParameterValue(robot.is_footprint_dynamic));
@@ -249,6 +250,7 @@ void TebConfig::loadRosParamFromNodeHandle(const nav2::LifecycleNode::SharedPtr 
   nh->get_parameter_or(name + "." + "steering_joint_name", robot.steering_joint_name, robot.steering_joint_name);
   nh->get_parameter_or(name + "." + "measured_steering_max_age", robot.measured_steering_max_age, robot.measured_steering_max_age);
   nh->get_parameter_or(name + "." + "measured_steering_idle_time", robot.measured_steering_idle_time, robot.measured_steering_idle_time);
+  nh->get_parameter_or(name + "." + "commanded_steering_max_deviation", robot.commanded_steering_max_deviation, robot.commanded_steering_max_deviation);
   nh->get_parameter_or(name + "." + "desired_steering_angle_topic", robot.desired_steering_angle_topic, robot.desired_steering_angle_topic);
   nh->get_parameter_or(name + "." + "steering_creep_velocity", robot.steering_creep_velocity, robot.steering_creep_velocity);
   nh->get_parameter_or(name + "." + "is_footprint_dynamic", robot.is_footprint_dynamic, robot.is_footprint_dynamic);
@@ -560,6 +562,8 @@ rcl_interfaces::msg::SetParametersResult
         robot.measured_steering_max_age = parameter.as_double();
       } else if (name == node_name + ".measured_steering_idle_time") {
         robot.measured_steering_idle_time = parameter.as_double();
+      } else if (name == node_name + ".commanded_steering_max_deviation") {
+        robot.commanded_steering_max_deviation = parameter.as_double();
       } else if (name == node_name + ".control_latency_s") {
         robot.control_latency_s = parameter.as_double();
       } else if (name == node_name + ".steering_latency_s") {

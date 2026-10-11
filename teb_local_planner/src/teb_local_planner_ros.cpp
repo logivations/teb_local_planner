@@ -41,6 +41,7 @@
 //#include <tf_conversions/tf_eigen.h>
 #include <boost/algorithm/string.hpp>
 
+#include <algorithm>
 #include <string>
 
 // pluginlib macros
@@ -423,7 +424,9 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
     // the last commanded angle instead (measured_steering_idle_time > 0).
     const bool teb_driving = cfg_->robot.measured_steering_idle_time > 0.0 && last_cmd_steering_angle_.first &&
       last_moving_cmd_time_ >= 0.0 && now.seconds() - last_moving_cmd_time_ <= cfg_->robot.measured_steering_idle_time;
-    if (!cfg_->robot.steering_angle_topic.empty() && !teb_driving)
+    bool measured_fresh = false;
+    double measured_angle = 0.0;
+    if (!cfg_->robot.steering_angle_topic.empty())
     {
       std::lock_guard<std::mutex> steering_lock(steering_meas_mutex_);
       if (!measured_steering_valid_)
@@ -437,8 +440,8 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
         const double age = (clock_->now() - measured_steering_stamp_).seconds();
         if (age <= cfg_->robot.measured_steering_max_age)
         {
-          steering_angle = measured_steering_angle_;
-          use_measured = true;
+          measured_angle = measured_steering_angle_;
+          measured_fresh = true;
         }
         else
         {
@@ -449,9 +452,21 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
         }
       }
     }
+    if (measured_fresh && !teb_driving)
+    {
+      steering_angle = measured_angle;
+      use_measured = true;
+    }
     // The last-command estimate persists through stop commands: the wheel stays where it was parked.
     if (!use_measured && last_cmd_steering_angle_.first)
+    {
       steering_angle = last_cmd_steering_angle_.second;
+      // The wheel cannot be further from its measured angle than it turns within the dead time:
+      // a lock-to-lock flip of the commands must not carry the anchor away from the real wheel.
+      const double max_dev = cfg_->robot.commanded_steering_max_deviation;
+      if (teb_driving && measured_fresh && max_dev > 0.0)
+        steering_angle = std::clamp(steering_angle, measured_angle - max_dev, measured_angle + max_dev);
+    }
     planner_->setInitialSteeringAngle(steering_angle);
   }
 
