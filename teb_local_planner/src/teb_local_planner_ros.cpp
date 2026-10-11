@@ -326,11 +326,20 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
   updateLatencyPredictorParams();
   if (latency_predictor_.enabled())
   {
-    const ControlLatencyPredictor::State measured{robot_pose_.x(), robot_pose_.y(), robot_pose_.theta(),
-                                                  velocity.linear.x, velocity.angular.z};
+    ControlLatencyPredictor::State measured{robot_pose_.x(), robot_pose_.y(), robot_pose_.theta(),
+                                            velocity.linear.x, velocity.angular.z};
+    if (cfg_->robot.steering_state_enabled && !cfg_->robot.steering_angle_topic.empty())
+    {
+      std::lock_guard<std::mutex> steering_lock(steering_meas_mutex_);
+      if (measured_steering_valid_ &&
+          (now - measured_steering_stamp_).seconds() <= cfg_->robot.measured_steering_max_age)
+        measured.steering = measured_steering_angle_;
+    }
     ControlLatencyPredictor::State predicted;
+    predicted_steering_ = std::numeric_limits<double>::quiet_NaN();
     if (latency_predictor_.predict(now.seconds(), measured, predicted))
     {
+      predicted_steering_ = predicted.steering;
       robot_pose_ = PoseSE2(predicted.x, predicted.y, predicted.theta);
       robot_pose_.toPoseMsg(robot_pose.pose);
       robot_vel_.linear.x = predicted.v;
@@ -423,7 +432,14 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
     // the last commanded angle instead (measured_steering_idle_time > 0).
     const bool teb_driving = cfg_->robot.measured_steering_idle_time > 0.0 && last_cmd_steering_angle_.first &&
       last_moving_cmd_time_ >= 0.0 && now.seconds() - last_moving_cmd_time_ <= cfg_->robot.measured_steering_idle_time;
-    if (!cfg_->robot.steering_angle_topic.empty() && !teb_driving)
+    // With the latency predictor's steering model the anchor is the wheel angle predicted for the
+    // moment this command takes effect (measured angle rolled forward with the commands in flight).
+    if (std::isfinite(predicted_steering_))
+    {
+      steering_angle = predicted_steering_;
+      use_measured = true;
+    }
+    else if (!cfg_->robot.steering_angle_topic.empty() && !teb_driving)
     {
       std::lock_guard<std::mutex> steering_lock(steering_meas_mutex_);
       if (!measured_steering_valid_)

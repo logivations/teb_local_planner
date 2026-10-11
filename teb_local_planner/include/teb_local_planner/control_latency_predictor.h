@@ -15,6 +15,7 @@
 #define CONTROL_LATENCY_PREDICTOR_H_
 
 #include <deque>
+#include <limits>
 
 namespace teb_local_planner
 {
@@ -68,6 +69,9 @@ public:
     double theta = 0.0;
     double v = 0.0;  //!< linear velocity in the robot frame
     double omega = 0.0;  //!< turn rate
+    //! wheel angle [rad] (steering model only). Input: the measured angle, NaN = unknown (then implied
+    //! from v/omega or the commands). Output: the predicted angle at t + latency, NaN without the model.
+    double steering = std::numeric_limits<double>::quiet_NaN();
   };
 
   void setParams(const Params& params) { params_ = params; }
