@@ -340,13 +340,22 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
   {
     std::lock_guard<std::mutex> lock(latency_predictor_mutex_);
     updateLatencyPredictorParams();
+    predicted_steering_ = std::numeric_limits<double>::quiet_NaN();
     if (latency_predictor_.enabled())
     {
-      const ControlLatencyPredictor::State measured{robot_pose_.x(), robot_pose_.y(), robot_pose_.theta(),
-                                                    velocity.linear.x, velocity.angular.z};
+      ControlLatencyPredictor::State measured{robot_pose_.x(), robot_pose_.y(), robot_pose_.theta(),
+                                              velocity.linear.x, velocity.angular.z};
+      if (cfg_->robot.steering_state_enabled && !cfg_->robot.steering_angle_topic.empty())
+      {
+        std::lock_guard<std::mutex> steering_lock(steering_meas_mutex_);
+        if (measured_steering_valid_ &&
+            (now - measured_steering_stamp_).seconds() <= cfg_->robot.measured_steering_max_age)
+          measured.steering = measured_steering_angle_;
+      }
       ControlLatencyPredictor::State predicted;
       if (latency_predictor_.predict(now.seconds(), measured, predicted))
       {
+        predicted_steering_ = predicted.steering;
         robot_pose_ = PoseSE2(predicted.x, predicted.y, predicted.theta);
         robot_pose_.toPoseMsg(robot_pose.pose);
         robot_vel_.linear.x = predicted.v;
@@ -359,7 +368,7 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
       }
     }
   }
-  
+
   // prune global plan to cut off parts of the past (spatially before the robot)
   pruneGlobalPlan(robot_pose, global_plan_, cfg_->trajectory.global_plan_prune_distance);
 
@@ -484,6 +493,10 @@ geometry_msgs::msg::TwistStamped TebLocalPlannerROS::computeVelocityCommands(con
       if (teb_driving && measured_fresh && max_dev > 0.0)
         steering_angle = std::clamp(steering_angle, measured_angle - max_dev, measured_angle + max_dev);
     }
+    // With the latency predictor's steering model the anchor is the wheel angle predicted for the
+    // moment this command takes effect (measured angle rolled forward with the commands in flight).
+    if (std::isfinite(predicted_steering_))
+      steering_angle = predicted_steering_;
     planner_->setInitialSteeringAngle(steering_angle);
   }
 

@@ -429,6 +429,7 @@ private:
   bool measured_steering_valid_ = false; //!< Keep track whether a measured steering angle has been received
   double measured_steering_angle_ = 0.0; //!< Most recent measured steering angle [rad]
   rclcpp::Time measured_steering_stamp_; //!< Stamp of the most recent measured steering angle
+  double predicted_steering_ = std::numeric_limits<double>::quiet_NaN(); //!< wheel angle predicted by the latency predictor's steering model this cycle (NaN: none); anchors the steering state when set
   double last_moving_cmd_time_ = -1.0; //!< Time [s] of the last moving command (linear or angular != 0), for measured_steering_idle_time; < 0: none since the last reset
   std::pair<bool, double> last_cmd_steering_angle_ = {false, 0.0}; //!< Wheel angle [rad] implied by the last non-zero velocity command (kept while stopped; fallback anchor for the steering state)
 

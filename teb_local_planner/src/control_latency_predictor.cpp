@@ -132,7 +132,9 @@ bool ControlLatencyPredictor::predict(double t, const State& measured, State& pr
   double delta = 0.0;
   if (steering)
   {
-    if (std::fabs(measured.v) >= kMinMeasuredSteeringSpeed)
+    if (std::isfinite(measured.steering))
+      delta = measured.steering;
+    else if (std::fabs(measured.v) >= kMinMeasuredSteeringSpeed)
       delta = impliedSteeringAngle(measured.v, measured.omega, 0.0);
     else if (const Command* c = commandAt(t - params_.steering_latency))
       delta = c->delta;  // standstill: assume the wheel reached the angle commanded one dead time ago
@@ -216,6 +218,7 @@ bool ControlLatencyPredictor::predict(double t, const State& measured, State& pr
   predicted.theta = std::remainder(theta, 2.0 * M_PI);
   predicted.v = v;
   predicted.omega = omega;
+  predicted.steering = steering ? delta : std::numeric_limits<double>::quiet_NaN();
   return true;
 }
 
